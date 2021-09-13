@@ -10,6 +10,7 @@
 #include <string.h>
 #include <limits.h>
 
+#include "nvim/api/vim.h"
 #include "nvim/vim.h"
 #include "nvim/ascii.h"
 #include "nvim/mark.h"
@@ -20,6 +21,7 @@
 #include "nvim/ex_cmds.h"
 #include "nvim/fileio.h"
 #include "nvim/fold.h"
+#include "nvim/decoration.h"
 #include "nvim/extmark.h"
 #include "nvim/mbyte.h"
 #include "nvim/memline.h"
@@ -51,6 +53,8 @@
 
 /// Global marks (marks with file number or name)
 static xfmark_T namedfm[NGLOBALMARKS];
+// static uint64_t namedfm_ns = (uint64_t)nvim_create_namespace((String){.data = NULL, .size = 0});
+// static uint64_t namedefm[NGLOBALMARKS];
 
 #ifdef INCLUDE_GENERATED_DECLARATIONS
 # include "mark.c.generated.h"
@@ -85,6 +89,15 @@ void clear_fmark(fmark_T *fm)
   memset(fm, 0, sizeof(*fm));
 }
 
+static bool setmark_pos_raw(buf_T *buf, int name, linenr_T row, colnr_T col)
+{
+  uint64_t id = extmark_set(buf, buf->b_namedmk_ns, (uint64_t)name,
+                            (int)row, col, -1, -1, NULL, true,
+                            false, kExtmarkNoUndo);
+  return id > 0;
+}
+
+
 /*
  * Set named mark "c" to position "pos".
  * When "c" is upper case use file "fnum".
@@ -110,12 +123,14 @@ int setmark_pos(int c, pos_T *pos, int fnum)
 
   // Can't set a mark in a non-existent buffer.
   buf_T *buf = buflist_findnr(fnum);
+  // In buffer
   if (buf == NULL) {
     return FAIL;
   }
 
   if (c == '"') {
     RESET_FMARK(&buf->b_last_cursor, *pos, buf->b_fnum);
+    setmark_pos_raw(buf, c, pos->lnum, pos->col);
     return OK;
   }
 
@@ -146,6 +161,7 @@ int setmark_pos(int c, pos_T *pos, int fnum)
   if (ASCII_ISLOWER(c)) {
     i = c - 'a';
     RESET_FMARK(buf->b_namedm + i, *pos, fnum);
+    setmark_pos_raw(buf, c, pos->lnum, pos->col);
     return OK;
   }
   if (ASCII_ISUPPER(c) || ascii_isdigit(c)) {
@@ -155,6 +171,7 @@ int setmark_pos(int c, pos_T *pos, int fnum)
       i = c - 'A';
     }
     RESET_XFMARK(namedfm + i, *pos, fnum, NULL);
+    // TODO(muniter): Global
     return OK;
   }
   return FAIL;
@@ -296,6 +313,22 @@ pos_T *movechangelist(int count)
   return &(curbuf->b_changelist[n].mark);
 }
 
+static ExtmarkInfo getmark_raw(buf_T *buf, uint64_t id)
+{
+  ExtmarkInfo mark = extmark_from_id(buf, buf->b_namedmk_ns, id);
+  return mark;
+}
+
+static pos_T getmark_pos(buf_T *buf, uint64_t id)
+{
+  ExtmarkInfo mark = getmark_raw(buf, id);
+  pos_T pos;
+  pos.lnum = mark.row;
+  pos.col = mark.col;
+  pos.coladd = 0;
+  return pos;
+}
+
 /*
  * Find mark "c" in buffer pointed to by "buf".
  * If "changefile" is TRUE it's allowed to edit another file for '0, 'A, etc.
@@ -390,7 +423,8 @@ pos_T *getmark_buf_fnum(buf_T *buf, int c, bool changefile, int *fnum)
       pos_copy.coladd = 0;
     }
   } else if (ASCII_ISLOWER(c)) {      /* normal named mark */
-    posp = &(buf->b_namedm[c - 'a'].mark);
+    pos_T otherpos = getmark_pos(buf, (uint64_t)c);
+    posp = &otherpos;
   } else if (ASCII_ISUPPER(c) || ascii_isdigit(c)) {    /* named file mark */
     if (ascii_isdigit(c))
       c = c - '0' + NMARKS;

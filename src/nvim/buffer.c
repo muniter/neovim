@@ -1874,6 +1874,7 @@ buf_T *buflist_new(char_u *ffname_arg, char_u *sfname_arg, linenr_T lnum,
   if (flags & BLN_DUMMY) {
     buf->b_flags |= BF_DUMMY;
   }
+  buf->b_namedmk_ns = (uint64_t)nvim_create_namespace((String)STRING_INIT);
   buf_clear_file(buf);
   clrallmarks(buf);                     // clear marks
   fmarks_check_names(buf);              // check file marks for this file

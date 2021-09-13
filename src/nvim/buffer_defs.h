@@ -590,6 +590,7 @@ struct file_buffer {
                                 // for viminfo
 
   fmark_T b_namedm[NMARKS];     // current named marks (mark.c)
+  uint64_t b_namedmk_ns;        // namespace for named marks
 
   // These variables are set when VIsual_active becomes FALSE
   visualinfo_T b_visual;
