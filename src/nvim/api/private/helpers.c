@@ -1404,7 +1404,7 @@ bool set_mark(buf_T *buf, String name, Integer line, Integer col, Error *err)
     }
   }
   pos_T pos = { line, (int)col, (int)col };
-  res = setmark_pos(*name.data, &pos, buf->handle);
+  res = setmark_pos(*name.data, &pos, buf->handle, NULL);
   if (!res) {
     if (deleting) {
       api_set_error(err, kErrorTypeException,
