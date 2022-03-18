@@ -309,7 +309,7 @@ cleanup:
 ///
 ///              What yes:
 ///                 - event: "pat1,pat2,pat3",
-///                 - event: "pat1"
+///                 - this: "pat1"
 ///                 - event: { "pat1" }
 ///                 - event: { "pat1", "pat2", "pat3" }
 ///
