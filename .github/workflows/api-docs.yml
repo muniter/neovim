@@ -14,9 +14,9 @@ on:
   workflow_dispatch:
   workflow_call:
     inputs:
-      create_pr:
+      check_only:
         type: boolean
-        default: true
+        default: false
         required: false
 
 jobs:
@@ -54,7 +54,7 @@ jobs:
           printf '::set-output name=UPDATED_DOCS::%s\n' $([ -z "$(git diff)" ]; echo $?)
 
       - name: FAIL, PR has not commited doc changes
-        if: ${{ steps.docs.outputs.UPDATED_DOCS != 0 && !inputs.create_pr }}
+        if: ${{ steps.docs.outputs.UPDATED_DOCS != 0 && inputs.check_only }}
         run: |
           echo "Job failed, run ./scripts/gen_vimdoc.py and commit your doc changes"
           exit 1

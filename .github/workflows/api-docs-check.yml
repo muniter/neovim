@@ -14,4 +14,4 @@ jobs:
     if: github.event.pull_request.draft == false
     uses: ./.github/workflows/api-docs.yml
     with:
-      create_pr: false
+      check_only: true
