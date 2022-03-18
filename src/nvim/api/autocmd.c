@@ -307,7 +307,7 @@ cleanup:
 ///          Required keys:
 ///              event: string | ArrayOf(string)
 ///
-///              Examples:
+///              What yes:
 ///                 - event: "pat1,pat2,pat3",
 ///                 - event: "pat1"
 ///                 - event: { "pat1" }
