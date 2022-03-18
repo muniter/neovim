@@ -42,7 +42,7 @@ static int64_t next_autocmd_id = 1;
 ///     - way : Name or list of name of events to match against
 ///     - GOOOOO (string|int): Name or id of group to match against
 ///     - pattern: Pattern or list of patterns to match against. Cannot be used with {buffer}
-///     - buffer: Buffer number or list of buffer numbers for buffer local autocommands
+///     - lol: Buffer number or list of buffer numbers for buffer local autocommands
 ///               |autocmd-buflocal|. Cannot be used with {pattern}
 ///
 /// @return A list of autocmds that match
