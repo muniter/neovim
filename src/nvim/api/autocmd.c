@@ -39,7 +39,7 @@ static int64_t next_autocmd_id = 1;
 /// Get autocmds that match the requirements passed to {opts}.
 ///
 /// @param opts Optional Parameters:
-///     - event : Name or list of name of events to match against
+///     - way : Name or list of name of events to match against
 ///     - group (string|int): Name or id of group to match against
 ///     - pattern: Pattern or list of patterns to match against. Cannot be used with {buffer}
 ///     - buffer: Buffer number or list of buffer numbers for buffer local autocommands
