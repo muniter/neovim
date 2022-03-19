@@ -3167,7 +3167,7 @@ nvim_create_autocmd({event}, {*opts})                  *nvim_create_autocmd()*
 
                 What yes:
                 • event: "pat1,pat2,pat3",
-                • event: "pat1"
+                • this: "pat1"
                 • event: { "pat1" }
                 • event: { "pat1", "pat2", "pat3" }
 
