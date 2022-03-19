@@ -3259,8 +3259,7 @@ nvim_get_autocmds({*opts})                               *nvim_get_autocmds()*
                               against
                             • group (string|int): Name or id of group to match
                               against
-                            • pattern: Pattern or list of patterns to match
-                              against. Cannot be used with {buffer}
+                            • pattern: Cool stuff
                             • buffer: Buffer number or list of buffer numbers
                               for buffer local autocommands
                               |autocmd-buflocal|. Cannot be used with
