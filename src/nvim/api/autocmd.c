@@ -44,7 +44,7 @@ static int64_t next_autocmd_id = 1;
 ///     - group (string|int): Name or id of group to match against
 ///     - pattern: Pattern or list of patterns to match against. Cannot be used with {buffer}
 ///     - buffer: Buffer number or list of buffer numbers for buffer local autocommands
-///               |autocmd-buflocal|. Cannot be used with {pattern}
+///               |autocmd-buflocal|. Should fail.
 ///
 /// @return A list of autocmds that match
 Array nvim_get_autocmds(Dict(get_autocmds) *opts, Error *err)
