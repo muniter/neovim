@@ -52,9 +52,12 @@ jobs:
       - name: Generate docs
         id: docs
         run: |
+          echo "SHA before $(sha1sum runtime/doc/api.txt)"
           git checkout -b ${DOC_BRANCH}
+          echo "SHA after checkout $(sha1sum runtime/doc/api.txt)"
           python3 scripts/gen_vimdoc.py
           printf '::set-output name=UPDATED_DOCS::%s\n' $([ -z "$(git diff)" ]; echo $?)
+          echo "SHA after $(sha1sum runtime/doc/api.txt)"
           echo "Debug"
           git diff
           echo "Another debug $(git diff --numstat | wc -l)"
