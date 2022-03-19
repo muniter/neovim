@@ -15,4 +15,5 @@ jobs:
     uses: ./.github/workflows/api-docs.yml
     with:
       check_only: true
-      ref: ${{ github.ref }}
+      # Checkout the HEAD commit not the merge commit
+      ref: ${{ github.event.pull_request.head.sha }}
