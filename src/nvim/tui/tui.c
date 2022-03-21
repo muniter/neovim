@@ -512,7 +512,8 @@ static void resize_timer_cb(uv_timer_t *timer)
 }
 
 /// Resize and conditionally refresh
-/// @return true if the size changed and scheduled refresh
+///
+/// @return true if the size changed and refresh was scheduled
 static bool handle_sigwinch(void *data)
 {
   got_winch = true;
@@ -524,8 +525,11 @@ static bool handle_sigwinch(void *data)
   if (tui_guess_size(ui)) {
     ui_schedule_refresh();
     return true;
+  } else {
+    // tui_grid_resize() won't be called, take care of resetting got_winch
+    got_winch = false;
+    return false;
   }
-  return false;
 }
 
 static void sigwinch_cb(SignalWatcher *watcher, int signum, void *data)
