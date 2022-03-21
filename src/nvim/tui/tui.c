@@ -172,6 +172,8 @@ UI *tui_start(void)
   ui->screenshot = tui_screenshot;
   ui->option_set= tui_option_set;
   ui->raw_line = tui_raw_line;
+  ui->height = 0;
+  ui->width = 0;
 
   memset(ui->ui_ext, 0, sizeof(ui->ui_ext));
   ui->ui_ext[kUILinegrid] = true;
@@ -509,16 +511,21 @@ static void resize_timer_cb(uv_timer_t *timer)
   }
 }
 
-static void handle_sigwinch(void *data)
+/// Resize and conditionally refresh
+/// @return true if the size changed and scheduled refresh
+static bool handle_sigwinch(void *data)
 {
   got_winch = true;
   UI *ui = data;
   if (tui_is_stopped(ui)) {
-    return;
+    return false;
   }
 
-  tui_guess_size(ui);
-  ui_schedule_refresh();
+  if (tui_guess_size(ui)) {
+    ui_schedule_refresh();
+    return true;
+  }
+  return false;
 }
 
 static void sigwinch_cb(SignalWatcher *watcher, int signum, void *data)
@@ -1493,9 +1500,14 @@ static void invalidate(UI *ui, int top, int bot, int left, int right)
 
 /// Tries to get the user's wanted dimensions (columns and rows) for the entire
 /// application (i.e., the host terminal).
-static void tui_guess_size(UI *ui)
+///
+/// @param  ui  The UI.
+/// @return true if the dimensions changed
+static bool tui_guess_size(UI *ui)
 {
   TUIData *data = ui->data;
+  int pre_width = ui->width;
+  int pre_height = ui->height;
   int width = 0, height = 0;
 
   // 1 - look for non-default 'columns' and 'lines' options during startup
@@ -1537,6 +1549,10 @@ static void tui_guess_size(UI *ui)
 
   data->bridge->bridge.width = ui->width = width;
   data->bridge->bridge.height = ui->height = height;
+  if (width != pre_width || height != pre_height) {
+    return true;
+  }
+  return false;
 }
 
 static void unibi_goto(UI *ui, int row, int col)
