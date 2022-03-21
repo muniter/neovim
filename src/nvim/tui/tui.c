@@ -137,7 +137,6 @@ typedef struct {
 } TUIData;
 
 static bool volatile got_winch = false;
-static bool did_first_resize = true;  // at first resize schedule a few more #11330
 static bool did_user_set_dimensions = false;
 static bool cursor_style_enabled = false;
 
@@ -964,6 +963,7 @@ static void reset_scroll_region(UI *ui, bool fullwidth)
 
 static void tui_grid_resize(UI *ui, Integer g, Integer width, Integer height)
 {
+  static bool did_first_resize = true;
   TUIData *data = ui->data;
   UGrid *grid = &data->grid;
   ugrid_resize(grid, (int)width, (int)height);
