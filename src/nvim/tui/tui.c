@@ -89,6 +89,7 @@ typedef struct {
   } output_handle;
   bool out_isatty;
   SignalWatcher winch_handle, cont_handle;
+  uv_timer_t initial_resize_timer;
   bool cont_received;
   UGrid grid;
   kvec_t(Rect) invalid_regions;
@@ -136,6 +137,7 @@ typedef struct {
 } TUIData;
 
 static bool volatile got_winch = false;
+static bool did_first_resize = true;  // at first resize schedule a few more #11330
 static bool did_user_set_dimensions = false;
 static bool cursor_style_enabled = false;
 
@@ -474,6 +476,7 @@ static void tui_main(UIBridgeData *bridge, UI *ui)
   signal_watcher_stop(&data->cont_handle);
   signal_watcher_close(&data->cont_handle, NULL);
   signal_watcher_close(&data->winch_handle, NULL);
+  uv_close((uv_handle_t *)&data->initial_resize_timer, NULL);
   loop_close(&tui_loop, false);
   kv_destroy(data->invalid_regions);
   kv_destroy(data->attrs);
@@ -496,7 +499,17 @@ static void sigcont_cb(SignalWatcher *watcher, int signum, void *data)
 }
 #endif
 
-static void sigwinch_cb(SignalWatcher *watcher, int signum, void *data)
+static void resize_timer_cb(uv_timer_t *timer)
+{
+  static int counter = 0;
+  counter++;
+  if (handle_sigwinch(timer->data) || counter >= 2) {
+    // Don't try again if the size changed.
+    uv_timer_stop(timer);
+  }
+}
+
+static void handle_sigwinch(void *data)
 {
   got_winch = true;
   UI *ui = data;
@@ -506,6 +519,11 @@ static void sigwinch_cb(SignalWatcher *watcher, int signum, void *data)
 
   tui_guess_size(ui);
   ui_schedule_refresh();
+}
+
+static void sigwinch_cb(SignalWatcher *watcher, int signum, void *data)
+{
+  handle_sigwinch(data);
 }
 
 static bool attrs_differ(UI *ui, int id1, int id2, bool rgb)
@@ -938,6 +956,14 @@ static void tui_grid_resize(UI *ui, Integer g, Integer width, Integer height)
   TUIData *data = ui->data;
   UGrid *grid = &data->grid;
   ugrid_resize(grid, (int)width, (int)height);
+
+  // When the UI starts, it might not be possible to resize correctly #15044
+  if (did_first_resize) {
+    did_first_resize = false;
+    uv_timer_init(&data->loop->uv, &data->initial_resize_timer);
+    data->initial_resize_timer.data = ui;
+    uv_timer_start(&data->initial_resize_timer, resize_timer_cb, 500, 500);
+  }
 
   xfree(data->space_buf);
   data->space_buf = xmalloc((size_t)width * sizeof(*data->space_buf));
