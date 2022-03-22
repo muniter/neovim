@@ -230,6 +230,9 @@ static void terminfo_start(UI *ui)
   data->unibi_ext.set_underline_color = -1;
   data->out_fd = STDOUT_FILENO;
   data->out_isatty = os_isatty(data->out_fd);
+  // Resizing at startup
+  uv_timer_init(&data->loop->uv, &data->initial_resize_timer);
+  uv_handle_set_data((uv_handle_t *)&data->initial_resize_timer, ui);
 
   const char *term = os_getenv("TERM");
 #ifdef WIN32
@@ -971,8 +974,6 @@ static void tui_grid_resize(UI *ui, Integer g, Integer width, Integer height)
   // When the UI starts, it might not be possible to resize correctly #15044
   if (did_first_resize) {
     did_first_resize = false;
-    uv_timer_init(&data->loop->uv, &data->initial_resize_timer);
-    data->initial_resize_timer.data = ui;
     uv_timer_start(&data->initial_resize_timer, resize_timer_cb, 500, 500);
   }
 
