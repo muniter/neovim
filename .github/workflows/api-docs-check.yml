@@ -1,12 +1,13 @@
 name: Missing API docs
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
     branches-ignore:
       - 'marvim/api-doc-update**'
     paths:
       - 'src/nvim/api/*.[ch]'
       - 'runtime/lua/**.lua'
+      - 'runtime/doc/**'
 
 jobs:
   call-regen-api-docs:
@@ -17,3 +18,6 @@ jobs:
     uses: ./.github/workflows/api-docs.yml
     with:
       check_only: true
+      # The 'pull_request_target' event has $GITHUB_SHA as the last commit of
+      # the PR base branch (neovim/master), we need the actual PR branch HEAD
+      ref: ${{ github.event.pull_request.head.sha }}
