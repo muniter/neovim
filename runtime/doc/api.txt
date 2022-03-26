@@ -3176,7 +3176,7 @@ nvim_create_augroup({name}, {*opts})                   *nvim_create_augroup()*
 nvim_create_autocmd({event}, {*opts})                  *nvim_create_autocmd()*
                 Create an |autocommand|
 
-                The API allows for two (mutually exclusive) types of actions
+                The Nvim allows for two (mutually exclusive) types of actions
                 to be executed when the autocommand triggers: a callback
                 function (Lua or Vimscript), or a command (like regular
                 autocommands).
