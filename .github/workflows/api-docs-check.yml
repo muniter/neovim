@@ -1,12 +1,13 @@
 name: Missing API docs
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
     branches-ignore:
       - 'marvim/api-doc-update**'
     paths:
       - 'src/nvim/api/*.[ch]'
       - 'runtime/lua/**.lua'
+      - 'runtime/doc/**'
 
 jobs:
   call-regen-api-docs:

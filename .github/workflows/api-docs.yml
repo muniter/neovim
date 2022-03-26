@@ -56,6 +56,8 @@ jobs:
         if: ${{ steps.docs.outputs.UPDATED_DOCS != 0 && inputs.check_only }}
         run: |
           echo "Job failed, run ./scripts/gen_vimdoc.py and commit your doc changes"
+          echo "The doc generation produces the following changes:"
+          git diff
           exit 1
 
       - name: Automatic PR
