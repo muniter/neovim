@@ -70,7 +70,7 @@ static int64_t next_autocmd_id = 1;
 ///             - once (boolean): whether the autocommand is only run once.
 ///             - pattern (string): the autocommand pattern.
 ///             If the autocommand is buffer local |autocmd-buffer-local|:
-///             - buflocal (boolean): true if the autocommand is buffer local.
+///             - home (boolean): true if the autocommand is buffer local.
 ///             - buffer (number): the buffer number.
 Array nvim_get_autocmds(Dict(get_autocmds) *opts, Error *err)
   FUNC_API_SINCE(9)
