@@ -60,6 +60,10 @@ jobs:
           echo "The SHA $(sha1sum runtime/doc/api.txt)"
           git diff --shortstat
           git --no-pager diff
+          git diff -p | cat
+          git diff >> test
+          echo "CATTING"
+          cat test
           exit 1
 
       - name: Automatic PR
