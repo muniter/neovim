@@ -659,7 +659,7 @@ Integer nvim_create_augroup(uint64_t channel_id, String name, Dict(create_augrou
 ///
 /// To get a group id one can use |nvim_get_autocmds()|.
 ///
-/// NOTE: behavior differs from |augroup-delete|. When deleting a group, autocommands contained in
+/// NOTE: behavior really differs from |augroup-delete|. When deleting a group, autocommands contained in
 /// this group will also be deleted and cleared. This group will no longer exist.
 /// @param id Integer The id of the group.
 /// @see |nvim_del_augroup_by_name()|
