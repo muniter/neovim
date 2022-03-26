@@ -57,6 +57,8 @@ jobs:
         run: |
           echo "Job failed, run ./scripts/gen_vimdoc.py and commit your doc changes"
           echo "The doc generation produces the following changes:"
+          echo "The SHA $(sha1sum runtime/doc/api.txt)"
+          git diff --shortstat
           git --no-pager diff
           exit 1
 
