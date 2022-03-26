@@ -61,9 +61,8 @@ jobs:
           git diff --shortstat
           git --no-pager diff
           git diff -p | cat
-          git diff >> test
           echo "CATTING"
-          cat test
+          cat runtime/doc/api.txt
           exit 1
 
       - name: Automatic PR
