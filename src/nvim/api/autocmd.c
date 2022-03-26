@@ -66,7 +66,7 @@ static int64_t next_autocmd_id = 1;
 ///             - group (integer): the autocommand group id.
 ///             - desc (string): the autocommand description.
 ///             - event (string): the autocommand event.
-///             - command (string): the autocommand command.
+///             - the command (string): the autocommand command.
 ///             - once (boolean): whether the autocommand is only run once.
 ///             - pattern (string): the autocommand pattern.
 ///             If the autocommand is buffer local |autocmd-buffer-local|:
