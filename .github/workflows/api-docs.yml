@@ -57,7 +57,7 @@ jobs:
         run: |
           echo "Job failed, run ./scripts/gen_vimdoc.py and commit your doc changes"
           echo "The doc generation produces the following changes:"
-          git diff
+          git --no-pager diff
           exit 1
 
       - name: Automatic PR
