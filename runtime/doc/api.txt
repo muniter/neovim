@@ -3492,9 +3492,9 @@ nvim_del_augroup_by_id({id})                        *nvim_del_augroup_by_id()*
 
                 To get a group id one can use |nvim_get_autocmds()|.
 
-                NOTE: behavior differs from |augroup-delete|. When deleting a
-                group, autocommands contained in this group will also be
-                deleted and cleared. This group will no longer exist.
+                NOTE: behavior really differs from |augroup-delete|. When
+                deleting a group, autocommands contained in this group will
+                also be deleted and cleared. This group will no longer exist.
 
                 Parameters: ~
                     {id}  Integer The id of the group.
@@ -3592,7 +3592,7 @@ nvim_get_autocmds({*opts})                               *nvim_get_autocmds()*
                     • group_name (string): the autocommand group name.
                     • desc (string): the autocommand description.
                     • event (string): the autocommand event.
-                    • command (string): the autocommand command.
+                    • the command (string): the autocommand command.
                     • once (boolean): whether the autocommand is only run
                       once.
                     • pattern (string): the autocommand pattern. If the
