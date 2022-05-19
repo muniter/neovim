@@ -38,7 +38,7 @@ alternate file (e.g. stderr) use `LOG_CALLSTACK_TO_FILE(FILE*)`. Requires
 Many log messages have a shared prefix, such as "UI" or "RPC". Use the shell to
 filter the log, e.g. at DEBUG level you might want to exclude UI messages:
 
-    tail -F ~/.cache/nvim/log | cat -v | stdbuf -o0 grep -v UI | stdbuf -o0 tee -a log
+    tail -F ~/.local/state/nvim/log | cat -v | stdbuf -o0 grep -v UI | stdbuf -o0 tee -a log
 
 Build with ASAN
 ---------------
@@ -68,7 +68,7 @@ Configure the sanitizer(s) via these environment variables:
     export ASAN_OPTIONS="detect_leaks=0:log_path=$HOME/logs/asan"
     # Show backtraces in the logs.
     export UBSAN_OPTIONS=print_stacktrace=1
-    export MSAN_OPTIONS="log_path=${HOME}/logs/tsan"
+    export MSAN_OPTIONS="log_path=${HOME}/logs/msan"
     export TSAN_OPTIONS="log_path=${HOME}/logs/tsan"
 
 Logs will be written to `${HOME}/logs/*san.PID` then.

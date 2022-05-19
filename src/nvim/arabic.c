@@ -957,11 +957,11 @@ int arabic_shape(int c, int *ccp, int *c1p, int prev_c, int prev_c1, int next_c)
   }
 
   if ((curr_c != c) && (ccp != NULL)) {
-    char_u buf[MB_MAXBYTES + 1];
+    char buf[MB_MAXBYTES + 1];
 
     // Update the first byte of the character
     utf_char2bytes(curr_c, buf);
-    *ccp = buf[0];
+    *ccp = (uint8_t)buf[0];
   }
 
   // Return the shaped character
@@ -974,6 +974,7 @@ int arabic_shape(int c, int *ccp, int *c1p, int prev_c, int prev_c1, int next_c)
 /// @param one First character.
 /// @param two Character just after "one".
 bool arabic_combine(int one, int two)
+  FUNC_ATTR_PURE
 {
   if (one == a_LAM) {
     return arabic_maycombine(two);
@@ -984,6 +985,7 @@ bool arabic_combine(int one, int two)
 /// Check whether we are dealing with a character that could be regarded as an
 /// Arabic combining character, need to check the character before this.
 bool arabic_maycombine(int two)
+  FUNC_ATTR_PURE
 {
   if (p_arshape && !p_tbidi) {
     return two == a_ALEF_MADDA

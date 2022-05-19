@@ -45,7 +45,7 @@ function! s:check_config() abort
   let shadafile = empty(&shada) ? &shada : substitute(matchstr(
         \ split(&shada, ',')[-1], '^n.\+'), '^n', '', '')
   let shadafile = empty(&shadafile) ? empty(shadafile) ?
-        \ stdpath('data').'/shada/main.shada' : expand(shadafile)
+        \ stdpath('state').'/shada/main.shada' : expand(shadafile)
         \ : &shadafile ==# 'NONE' ? '' : &shadafile
   if !empty(shadafile) && empty(glob(shadafile))
     " Since this may be the first time neovim has been run, we will try to
@@ -143,6 +143,16 @@ function! s:check_performance() abort
           \ 'Non-optimized '.(has('debug')?'(DEBUG) ':'').'build. Nvim will be slower.',
           \ ['Install a different Nvim package, or rebuild with `CMAKE_BUILD_TYPE=RelWithDebInfo`.',
           \  s:suggest_faq])
+  endif
+
+  " check for slow shell invocation
+  let slow_cmd_time = 1.5
+  let start_time = reltime()
+  call system('echo')
+  let elapsed_time = reltimefloat(reltime(start_time))
+  if elapsed_time > slow_cmd_time
+    call health#report_warn(
+          \ 'Slow shell invocation (took '.printf('%.2f', elapsed_time).' seconds).')
   endif
 endfunction
 

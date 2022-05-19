@@ -14,6 +14,7 @@
 #include "nvim/map.h"
 #include "nvim/memory.h"
 #include "nvim/msgpack_rpc/channel.h"
+#include "nvim/option.h"
 #include "nvim/popupmnu.h"
 #include "nvim/screen.h"
 #include "nvim/ui.h"
@@ -255,6 +256,49 @@ static void ui_set_option(UI *ui, bool init, String name, Object value, Error *e
     return;
   }
 
+  if (strequal(name.data, "term_name")) {
+    if (value.type != kObjectTypeString) {
+      api_set_error(error, kErrorTypeValidation, "term_name must be a String");
+      return;
+    }
+    set_tty_option("term", string_to_cstr(value.data.string));
+    return;
+  }
+
+  if (strequal(name.data, "term_colors")) {
+    if (value.type != kObjectTypeInteger) {
+      api_set_error(error, kErrorTypeValidation, "term_colors must be a Integer");
+      return;
+    }
+    t_colors = (int)value.data.integer;
+    return;
+  }
+
+  if (strequal(name.data, "term_background")) {
+    if (value.type != kObjectTypeString) {
+      api_set_error(error, kErrorTypeValidation, "term_background must be a String");
+      return;
+    }
+    set_tty_background(value.data.string.data);
+    return;
+  }
+
+  if (strequal(name.data, "stdin_fd")) {
+    if (value.type != kObjectTypeInteger || value.data.integer < 0) {
+      api_set_error(error, kErrorTypeValidation, "stdin_fd must be a non-negative Integer");
+      return;
+    }
+
+    if (starting != NO_SCREEN) {
+      api_set_error(error, kErrorTypeValidation,
+                    "stdin_fd can only be used with first attached ui");
+      return;
+    }
+
+    stdin_fd = (int)value.data.integer;
+    return;
+  }
+
   // LEGACY: Deprecated option, use `ext_cmdline` instead.
   bool is_popupmenu = strequal(name.data, "popupmenu_external");
 
@@ -305,7 +349,11 @@ void nvim_ui_try_resize_grid(uint64_t channel_id, Integer grid, Integer width, I
     return;
   }
 
-  ui_grid_resize((handle_T)grid, (int)width, (int)height, err);
+  if (grid == DEFAULT_GRID_HANDLE) {
+    nvim_ui_try_resize(channel_id, width, height, err);
+  } else {
+    ui_grid_resize((handle_T)grid, (int)width, (int)height, err);
+  }
 }
 
 /// Tells Nvim the number of elements displaying in the popumenu, to decide
@@ -447,9 +495,9 @@ static void remote_ui_grid_scroll(UI *ui, Integer grid, Integer top, Integer bot
   } else {
     Array args = ARRAY_DICT_INIT;
     ADD(args, INTEGER_OBJ(top));
-    ADD(args, INTEGER_OBJ(bot-1));
+    ADD(args, INTEGER_OBJ(bot - 1));
     ADD(args, INTEGER_OBJ(left));
-    ADD(args, INTEGER_OBJ(right-1));
+    ADD(args, INTEGER_OBJ(right - 1));
     push_call(ui, "set_scroll_region", args);
 
     args = (Array)ARRAY_DICT_INIT;
@@ -460,9 +508,9 @@ static void remote_ui_grid_scroll(UI *ui, Integer grid, Integer top, Integer bot
     // so reset it.
     args = (Array)ARRAY_DICT_INIT;
     ADD(args, INTEGER_OBJ(0));
-    ADD(args, INTEGER_OBJ(ui->height-1));
+    ADD(args, INTEGER_OBJ(ui->height - 1));
     ADD(args, INTEGER_OBJ(0));
-    ADD(args, INTEGER_OBJ(ui->width-1));
+    ADD(args, INTEGER_OBJ(ui->width - 1));
     push_call(ui, "set_scroll_region", args);
   }
 }
@@ -587,12 +635,12 @@ static void remote_ui_raw_line(UI *ui, Integer grid, Integer row, Integer startc
     ADD(args, INTEGER_OBJ(startcol));
     Array cells = ARRAY_DICT_INIT;
     int repeat = 0;
-    size_t ncells = (size_t)(endcol-startcol);
+    size_t ncells = (size_t)(endcol - startcol);
     int last_hl = -1;
     for (size_t i = 0; i < ncells; i++) {
       repeat++;
-      if (i == ncells-1 || attrs[i] != attrs[i+1]
-          || STRCMP(chunk[i], chunk[i+1])) {
+      if (i == ncells - 1 || attrs[i] != attrs[i + 1]
+          || STRCMP(chunk[i], chunk[i + 1])) {
         Array cell = ARRAY_DICT_INIT;
         ADD(cell, STRING_OBJ(cstr_to_string((const char *)chunk[i])));
         if (attrs[i] != last_hl || repeat > 1) {
@@ -610,18 +658,18 @@ static void remote_ui_raw_line(UI *ui, Integer grid, Integer row, Integer startc
       Array cell = ARRAY_DICT_INIT;
       ADD(cell, STRING_OBJ(cstr_to_string(" ")));
       ADD(cell, INTEGER_OBJ(clearattr));
-      ADD(cell, INTEGER_OBJ(clearcol-endcol));
+      ADD(cell, INTEGER_OBJ(clearcol - endcol));
       ADD(cells, ARRAY_OBJ(cell));
     }
     ADD(args, ARRAY_OBJ(cells));
 
     push_call(ui, "grid_line", args);
   } else {
-    for (int i = 0; i < endcol-startcol; i++) {
-      remote_ui_cursor_goto(ui, row, startcol+i);
+    for (int i = 0; i < endcol - startcol; i++) {
+      remote_ui_cursor_goto(ui, row, startcol + i);
       remote_ui_highlight_set(ui, attrs[i]);
       remote_ui_put(ui, (const char *)chunk[i]);
-      if (utf_ambiguous_width(utf_ptr2char(chunk[i]))) {
+      if (utf_ambiguous_width(utf_ptr2char((char *)chunk[i]))) {
         data->client_col = -1;  // force cursor update
       }
     }

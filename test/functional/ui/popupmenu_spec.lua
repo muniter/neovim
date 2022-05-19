@@ -953,72 +953,72 @@ describe('builtin popupmenu', function()
     insert('aaa aab aac\n')
     feed(':vsplit<cr>')
     screen:expect([[
-      aaa aab aac         {3:│}aaa aab aac|
-      ^                    {3:│}           |
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
+      aaa aab aac         │aaa aab aac|
+      ^                    │           |
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
       {4:[No Name] [+]        }{3:<Name] [+] }|
       :vsplit                         |
     ]])
 
     feed('ibbb a<c-x><c-n>')
     screen:expect([[
-      aaa aab aac         {3:│}aaa aab aac|
-      bbb aaa^             {3:│}bbb aaa    |
-      {1:~  }{s: aaa            }{1: }{3:│}{1:~          }|
-      {1:~  }{n: aab            }{1: }{3:│}{1:~          }|
-      {1:~  }{n: aac            }{1: }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
-      {1:~                   }{3:│}{1:~          }|
+      aaa aab aac         │aaa aab aac|
+      bbb aaa^             │bbb aaa    |
+      {1:~  }{s: aaa            }{1: }│{1:~          }|
+      {1:~  }{n: aab            }{1: }│{1:~          }|
+      {1:~  }{n: aac            }{1: }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
+      {1:~                   }│{1:~          }|
       {4:[No Name] [+]        }{3:<Name] [+] }|
       {2:-- }{5:match 1 of 3}                 |
     ]])
 
     feed('<esc><c-w><c-w>oc a<c-x><c-n>')
     screen:expect([[
-      aaa aab aac{3:│}aaa aab aac         |
-      bbb aaa    {3:│}bbb aaa             |
-      c aaa      {3:│}c aaa^               |
-      {1:~          }{3:│}{1:~}{s: aaa            }{1:   }|
-      {1:~          }{3:│}{1:~}{n: aab            }{1:   }|
-      {1:~          }{3:│}{1:~}{n: aac            }{1:   }|
-      {1:~          }{3:│}{1:~                   }|
-      {1:~          }{3:│}{1:~                   }|
-      {1:~          }{3:│}{1:~                   }|
-      {1:~          }{3:│}{1:~                   }|
-      {1:~          }{3:│}{1:~                   }|
-      {1:~          }{3:│}{1:~                   }|
-      {1:~          }{3:│}{1:~                   }|
-      {1:~          }{3:│}{1:~                   }|
-      {1:~          }{3:│}{1:~                   }|
-      {1:~          }{3:│}{1:~                   }|
-      {1:~          }{3:│}{1:~                   }|
-      {1:~          }{3:│}{1:~                   }|
+      aaa aab aac│aaa aab aac         |
+      bbb aaa    │bbb aaa             |
+      c aaa      │c aaa^               |
+      {1:~          }│{1:~}{s: aaa            }{1:   }|
+      {1:~          }│{1:~}{n: aab            }{1:   }|
+      {1:~          }│{1:~}{n: aac            }{1:   }|
+      {1:~          }│{1:~                   }|
+      {1:~          }│{1:~                   }|
+      {1:~          }│{1:~                   }|
+      {1:~          }│{1:~                   }|
+      {1:~          }│{1:~                   }|
+      {1:~          }│{1:~                   }|
+      {1:~          }│{1:~                   }|
+      {1:~          }│{1:~                   }|
+      {1:~          }│{1:~                   }|
+      {1:~          }│{1:~                   }|
+      {1:~          }│{1:~                   }|
+      {1:~          }│{1:~                   }|
       {3:<Name] [+]  }{4:[No Name] [+]       }|
       {2:-- }{5:match 1 of 3}                 |
     ]])
@@ -1952,7 +1952,7 @@ describe('builtin popupmenu', function()
     ]])
   end)
 
-  it('wildoptions=pum with scrolled mesages ', function()
+  it('wildoptions=pum with scrolled messages ', function()
     screen:try_resize(40,10)
     command('set wildmenu')
     command('set wildoptions=pum')
@@ -2191,7 +2191,7 @@ describe('builtin popupmenu', function()
       {20:-- Keyword Local completion (^N^P) }{21:match 1 of 65}            |
     ]])
 
-    -- can disable blending for indiviual attribute. For instance current
+    -- can disable blending for individual attribute. For instance current
     -- selected item. (also tests that `hi Pmenu*` take immediate effect)
     command('hi PMenuSel blend=0')
     screen:expect([[
@@ -2319,47 +2319,6 @@ describe('builtin popupmenu', function()
     funcs.complete(col - max_len, items)
     feed('<c-y>')
     assert_alive()
-  end)
-
-  it('is closed by :stopinsert from timer #12976', function()
-    screen:try_resize(32,14)
-    command([[call setline(1, ['hello', 'hullo', 'heeee', ''])]])
-    feed('Gah<c-x><c-n>')
-    screen:expect([[
-      hello                           |
-      hullo                           |
-      heeee                           |
-      hello^                           |
-      {s:hello          }{1:                 }|
-      {n:hullo          }{1:                 }|
-      {n:heeee          }{1:                 }|
-      {1:~                               }|
-      {1:~                               }|
-      {1:~                               }|
-      {1:~                               }|
-      {1:~                               }|
-      {1:~                               }|
-      {2:-- }{5:match 1 of 3}                 |
-    ]])
-    command([[call timer_start(100, { -> execute('stopinsert') })]])
-    helpers.sleep(200)
-    feed('k')  -- cursor should move up in Normal mode
-    screen:expect([[
-      hello                           |
-      hullo                           |
-      heee^e                           |
-      hello                           |
-      {1:~                               }|
-      {1:~                               }|
-      {1:~                               }|
-      {1:~                               }|
-      {1:~                               }|
-      {1:~                               }|
-      {1:~                               }|
-      {1:~                               }|
-      {1:~                               }|
-                                      |
-    ]])
   end)
 
   it('truncates double-width character correctly when there is no scrollbar', function()

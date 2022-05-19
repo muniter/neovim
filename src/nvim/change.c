@@ -209,6 +209,10 @@ static void changed_common(linenr_T lnum, colnr_T col, linenr_T lnume, long xtra
     curwin->w_changelistidx = curbuf->b_changelistlen;
   }
 
+  if (VIsual_active) {
+    check_visual_pos();
+  }
+
   FOR_ALL_TAB_WINDOWS(tp, wp) {
     if (wp->w_buffer == curbuf) {
       // Mark this window to be redrawn later.
@@ -286,9 +290,11 @@ static void changed_common(linenr_T lnum, colnr_T col, linenr_T lnume, long xtra
         set_topline(wp, wp->w_topline);
       }
 
-      // Relative numbering may require updating more.
-      if (wp->w_p_rnu) {
-        redraw_later(wp, SOME_VALID);
+      // If lines have been added or removed, relative numbering always
+      // requires a redraw.
+      if (wp->w_p_rnu && xtra != 0) {
+        wp->w_last_cursor_lnum_rnu = 0;
+        redraw_later(wp, VALID);
       }
 
       // Cursor line highlighting probably need to be updated with
@@ -367,7 +373,7 @@ void changed_bytes(linenr_T lnum, colnr_T col)
 void inserted_bytes(linenr_T lnum, colnr_T col, int old, int new)
 {
   if (curbuf_splice_pending == 0) {
-    extmark_splice_cols(curbuf, (int)lnum-1, col, old, new, kExtmarkUndo);
+    extmark_splice_cols(curbuf, (int)lnum - 1, col, old, new, kExtmarkUndo);
   }
 
   changed_bytes(lnum, col);
@@ -541,21 +547,21 @@ void ins_bytes_len(char_u *p, size_t len)
 }
 
 /// Insert or replace a single character at the cursor position.
-/// When in REPLACE or VREPLACE mode, replace any existing character.
+/// When in MODE_REPLACE or MODE_VREPLACE state, replace any existing character.
 /// Caller must have prepared for undo.
 /// For multi-byte characters we get the whole character, the caller must
 /// convert bytes to a character.
 void ins_char(int c)
 {
   char_u buf[MB_MAXBYTES + 1];
-  size_t n = (size_t)utf_char2bytes(c, buf);
+  size_t n = (size_t)utf_char2bytes(c, (char *)buf);
 
   // When "c" is 0x100, 0x200, etc. we don't want to insert a NUL byte.
   // Happens for CTRL-Vu9900.
   if (buf[0] == 0) {
     buf[0] = '\n';
   }
-  ins_char_bytes(buf, n);
+  ins_char_bytes((char_u *)buf, n);
 }
 
 void ins_char_bytes(char_u *buf, size_t charlen)
@@ -597,7 +603,7 @@ void ins_char_bytes(char_u *buf, size_t charlen)
         if (vcol > new_vcol && oldp[col + oldlen] == TAB) {
           break;
         }
-        oldlen += (size_t)utfc_ptr2len(oldp + col + oldlen);
+        oldlen += (size_t)utfc_ptr2len((char *)oldp + col + oldlen);
         // Deleted a bit too much, insert spaces.
         if (vcol > new_vcol) {
           newlen += (size_t)(vcol - new_vcol);
@@ -606,7 +612,7 @@ void ins_char_bytes(char_u *buf, size_t charlen)
       curwin->w_p_list = old_list;
     } else if (oldp[col] != NUL) {
       // normal replace
-      oldlen = (size_t)utfc_ptr2len(oldp + col);
+      oldlen = (size_t)utfc_ptr2len((char *)oldp + col);
     }
 
 
@@ -643,17 +649,17 @@ void ins_char_bytes(char_u *buf, size_t charlen)
   }
 
   // Replace the line in the buffer.
-  ml_replace(lnum, newp, false);
+  ml_replace(lnum, (char *)newp, false);
 
   // mark the buffer as changed and prepare for displaying
   inserted_bytes(lnum, (colnr_T)col, (int)oldlen, (int)newlen);
 
   // If we're in Insert or Replace mode and 'showmatch' is set, then briefly
   // show the match for right parens and braces.
-  if (p_sm && (State & INSERT)
+  if (p_sm && (State & MODE_INSERT)
       && msg_silent == 0
       && !ins_compl_active()) {
-    showmatch(utf_ptr2char(buf));
+    showmatch(utf_ptr2char((char *)buf));
   }
 
   if (!p_ri || (State & REPLACE_FLAG)) {
@@ -687,7 +693,7 @@ void ins_str(char_u *s)
   int bytes = oldlen - col + 1;
   assert(bytes >= 0);
   memmove(newp + col + newlen, oldp + col, (size_t)bytes);
-  ml_replace(lnum, newp, false);
+  ml_replace(lnum, (char *)newp, false);
   inserted_bytes(lnum, col, 0, newlen);
   curwin->w_cursor.col += newlen;
 }
@@ -713,7 +719,7 @@ int del_chars(long count, int fixpos)
   int bytes = 0;
   char_u *p = get_cursor_pos_ptr();
   for (long i = 0; i < count && *p != NUL; i++) {
-    int l = utfc_ptr2len(p);
+    int l = utfc_ptr2len((char *)p);
     bytes += l;
     p += l;
   }
@@ -754,7 +760,7 @@ int del_bytes(colnr_T count, bool fixpos_arg, bool use_delcombine)
   // If 'delcombine' is set and deleting (less than) one character, only
   // delete the last combining character.
   if (p_deco && use_delcombine
-      && utfc_ptr2len(oldp + col) >= count) {
+      && utfc_ptr2len((char *)oldp + col) >= count) {
     int cc[MAX_MCO];
 
     (void)utfc_ptr2char(oldp + col, cc);
@@ -763,7 +769,7 @@ int del_bytes(colnr_T count, bool fixpos_arg, bool use_delcombine)
       int n = col;
       do {
         col = n;
-        count = utf_ptr2len(oldp + n);
+        count = utf_ptr2len((char *)oldp + n);
         n += count;
       } while (utf_composinglike(oldp + col, oldp + n));
       fixpos = false;
@@ -799,7 +805,7 @@ int del_bytes(colnr_T count, bool fixpos_arg, bool use_delcombine)
   }
   memmove(newp + col, oldp + col + count, (size_t)movelen);
   if (!was_alloced) {
-    ml_replace(lnum, newp, false);
+    ml_replace(lnum, (char *)newp, false);
   }
 
   // mark the buffer as changed and prepare for displaying
@@ -912,7 +918,7 @@ int copy_indent(int size, char_u *src)
   memmove(p, get_cursor_line_ptr(), (size_t)line_len);
 
   // Replace the line
-  ml_replace(curwin->w_cursor.lnum, line, false);
+  ml_replace(curwin->w_cursor.lnum, (char *)line, false);
 
   // Put the cursor after the indent.
   curwin->w_cursor.col = ind_len;
@@ -921,10 +927,10 @@ int copy_indent(int size, char_u *src)
 
 /// open_line: Add a new line below or above the current line.
 ///
-/// For VREPLACE mode, we only add a new line when we get to the end of the
-/// file, otherwise we just start replacing the next line.
+/// For MODE_VREPLACE state, we only add a new line when we get to the end of
+/// the file, otherwise we just start replacing the next line.
 ///
-/// Caller must take care of undo.  Since VREPLACE may affect any number of
+/// Caller must take care of undo.  Since MODE_VREPLACE may affect any number of
 /// lines however, it may call u_save_cursor() again when starting to change a
 /// new line.
 /// "flags": OPENLINE_DELSPACES delete spaces after cursor
@@ -961,8 +967,7 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
   char_u *p;
   char_u saved_char = NUL;        // init for GCC
   pos_T *pos;
-  bool do_si = (!p_paste && curbuf->b_p_si && !curbuf->b_p_cin
-                && *curbuf->b_p_inde == NUL);
+  bool do_si = may_do_si();
   bool do_cindent;
   bool no_si = false;             // reset did_si afterwards
   int first_char = NUL;           // init for GCC
@@ -977,7 +982,7 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
   char_u *saved_line = vim_strsave(get_cursor_line_ptr());
 
   if (State & VREPLACE_FLAG) {
-    // With VREPLACE we make a copy of the next line, which we will be
+    // With MODE_VREPLACE we make a copy of the next line, which we will be
     // starting to replace.  First make the new line empty and let vim play
     // with the indenting and comment leader to its heart's content.  Then
     // we grab what it ended up putting on the new line, put back the
@@ -990,11 +995,11 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
       next_line = vim_strsave((char_u *)"");
     }
 
-    // In VREPLACE mode, a NL replaces the rest of the line, and starts
-    // replacing the next line, so push all of the characters left on the
-    // line onto the replace stack.  We'll push any other characters that
-    // might be replaced at the start of the next line (due to autoindent
-    // etc) a bit later.
+    // In MODE_VREPLACE state, a NL replaces the rest of the line, and
+    // starts replacing the next line, so push all of the characters left
+    // on the line onto the replace stack.  We'll push any other characters
+    // that might be replaced at the start of the next line (due to
+    // autoindent etc) a bit later.
     replace_push(NUL);      // Call twice because BS over NL expects it
     replace_push(NUL);
     p = saved_line + curwin->w_cursor.col;
@@ -1004,11 +1009,10 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
     saved_line[curwin->w_cursor.col] = NUL;
   }
 
-  if ((State & INSERT)
-      && !(State & VREPLACE_FLAG)) {
+  if ((State & MODE_INSERT) && (State & VREPLACE_FLAG) == 0) {
     p_extra = saved_line + curwin->w_cursor.col;
     if (do_si) {  // need first char after new line break
-      p = skipwhite(p_extra);
+      p = (char_u *)skipwhite((char *)p_extra);
       first_char = *p;
     }
     extra_len = (int)STRLEN(p_extra);
@@ -1075,7 +1079,7 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
           //      */
           //     #define IN_THE_WAY
           //     This should line up here;
-          p = skipwhite(ptr);
+          p = (char_u *)skipwhite((char *)ptr);
           if (p[0] == '/' && p[1] == '*') {
             p++;
           }
@@ -1158,7 +1162,7 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
             newindent = get_indent();
           }
         }
-        p = skipwhite(ptr);
+        p = (char_u *)skipwhite((char *)ptr);
         if (*p == '}') {            // if line starts with '}': do indent
           did_si = true;
         } else {                    // can delete indent when '{' typed
@@ -1184,7 +1188,8 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
   end_comment_pending = NUL;
   if (flags & OPENLINE_DO_COM) {
     lead_len = get_leader_len(saved_line, &lead_flags, dir == BACKWARD, true);
-    if (lead_len == 0 && do_cindent && dir == FORWARD) {
+    if (lead_len == 0 && curbuf->b_p_cin && do_cindent && dir == FORWARD
+        && !has_format_option(FO_NO_OPEN_COMS)) {
       // Check for a line comment after code.
       comment_start = check_linecomment(saved_line);
       if (comment_start != MAXCOL) {
@@ -1293,7 +1298,7 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
         // Remember where the end is, might want to use it to find the
         // start (for C-comments).
         if (dir == FORWARD) {
-          comment_end = skipwhite(saved_line);
+          comment_end = (char_u *)skipwhite((char *)saved_line);
           lead_len = 0;
           break;
         }
@@ -1304,8 +1309,7 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
           p--;
         }
         for (lead_repl = p; lead_repl > curbuf->b_p_com
-             && lead_repl[-1] != ':'; lead_repl--) {
-        }
+             && lead_repl[-1] != ':'; lead_repl--) {}
         lead_repl_len = (int)(p - lead_repl);
 
         // We can probably always add an extra space when doing "O" on
@@ -1377,8 +1381,7 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
         if (c == COM_RIGHT) {  // right adjusted leader
           // find last non-white in the leader to line up with
           for (p = leader + lead_len - 1; p > leader
-               && ascii_iswhite(*p); p--) {
-          }
+               && ascii_iswhite(*p); p--) {}
           p++;
 
           // Compute the length of the replaced characters in
@@ -1425,7 +1428,7 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
             }
           }
         } else {  // left adjusted leader
-          p = skipwhite(leader);
+          p = (char_u *)skipwhite((char *)leader);
           // Compute the length of the replaced characters in
           // screen characters, not bytes. Move the part that is
           // not to be overwritten.
@@ -1436,7 +1439,7 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
             int l;
 
             for (i = 0; i < lead_len && p[i] != NUL; i += l) {
-              l = utfc_ptr2len(p + i);
+              l = utfc_ptr2len((char *)p + i);
               if (vim_strnsize(p, i + l) > repl_size) {
                 break;
               }
@@ -1459,7 +1462,7 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
                 lead_len--;
                 memmove(p, p + 1, (size_t)(leader + lead_len - p));
               } else {
-                int l = utfc_ptr2len(p);
+                int l = utfc_ptr2len((char *)p);
 
                 if (l > 1) {
                   if (ptr2cells(p) > 1) {
@@ -1499,7 +1502,7 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
         while (off > 0 && lead_len > 0
                && leader[lead_len - 1] == ' ') {
           // Don't do it when there is a tab before the space
-          if (vim_strchr(skipwhite(leader), '\t') != NULL) {
+          if (vim_strchr(skipwhite((char *)leader), '\t') != NULL) {
             break;
           }
           lead_len--;
@@ -1551,21 +1554,22 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
     }
   }
 
-  // (State == INSERT || State == REPLACE), only when dir == FORWARD
+  // (State == MODE_INSERT || State == MODE_REPLACE), only when dir == FORWARD
   if (p_extra != NULL) {
     *p_extra = saved_char;              // restore char that NUL replaced
 
     // When 'ai' set or "flags" has OPENLINE_DELSPACES, skip to the first
     // non-blank.
     //
-    // When in REPLACE mode, put the deleted blanks on the replace stack,
-    // preceded by a NUL, so they can be put back when a BS is entered.
+    // When in MODE_REPLACE state, put the deleted blanks on the replace
+    // stack, preceded by a NUL, so they can be put back when a BS is
+    // entered.
     if (REPLACE_NORMAL(State)) {
       replace_push(NUL);            // end of extra blanks
     }
     if (curbuf->b_p_ai || (flags & OPENLINE_DELSPACES)) {
       while ((*p_extra == ' ' || *p_extra == '\t')
-             && !utf_iscomposing(utf_ptr2char(p_extra + 1))) {
+             && !utf_iscomposing(utf_ptr2char((char *)p_extra + 1))) {
         if (REPLACE_NORMAL(State)) {
           replace_push(*p_extra);
         }
@@ -1611,8 +1615,8 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
   if (dir == BACKWARD) {
     curwin->w_cursor.lnum--;
   }
-  if (!(State & VREPLACE_FLAG) || old_cursor.lnum >= orig_line_count) {
-    if (ml_append(curwin->w_cursor.lnum, p_extra, (colnr_T)0, false) == FAIL) {
+  if ((State & VREPLACE_FLAG) == 0 || old_cursor.lnum >= orig_line_count) {
+    if (ml_append(curwin->w_cursor.lnum, (char *)p_extra, (colnr_T)0, false) == FAIL) {
       goto theend;
     }
     // Postpone calling changed_lines(), because it would mess up folding
@@ -1626,7 +1630,7 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
     }
     did_append = true;
   } else {
-    // In VREPLACE mode we are starting to replace the next line.
+    // In MODE_VREPLACE state we are starting to replace the next line.
     curwin->w_cursor.lnum++;
     if (curwin->w_cursor.lnum >= Insstart.lnum + vr_lines_changed) {
       // In case we NL to a new line, BS to the previous one, and NL
@@ -1634,7 +1638,7 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
       (void)u_save_cursor();  // errors are ignored!
       vr_lines_changed++;
     }
-    ml_replace(curwin->w_cursor.lnum, p_extra, true);
+    ml_replace(curwin->w_cursor.lnum, (char *)p_extra, true);
     changed_bytes(curwin->w_cursor.lnum, 0);
     // TODO(vigoux): extmark_splice_cols here??
     curwin->w_cursor.lnum--;
@@ -1668,8 +1672,8 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
 
     ai_col = curwin->w_cursor.col;
 
-    // In REPLACE mode, for each character in the new indent, there must
-    // be a NUL on the replace stack, for when it is deleted with BS
+    // In MODE_REPLACE state, for each character in the new indent, there
+    // must be a NUL on the replace stack, for when it is deleted with BS
     if (REPLACE_NORMAL(State)) {
       for (colnr_T n = 0; n < curwin->w_cursor.col; n++) {
         replace_push(NUL);
@@ -1682,8 +1686,8 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
   }
   inhibit_delete_count--;
 
-  // In REPLACE mode, for each character in the extra leader, there must be
-  // a NUL on the replace stack, for when it is deleted with BS.
+  // In MODE_REPLACE state, for each character in the extra leader, there
+  // must be a NUL on the replace stack, for when it is deleted with BS.
   if (REPLACE_NORMAL(State)) {
     while (lead_len-- > 0) {
       replace_push(NUL);
@@ -1693,14 +1697,14 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
   curwin->w_cursor = old_cursor;
 
   if (dir == FORWARD) {
-    if (trunc_line || (State & INSERT)) {
+    if (trunc_line || (State & MODE_INSERT)) {
       // truncate current line at cursor
       saved_line[curwin->w_cursor.col] = NUL;
       // Remove trailing white space, unless OPENLINE_KEEPTRAIL used.
       if (trunc_line && !(flags & OPENLINE_KEEPTRAIL)) {
         truncate_spaces(saved_line);
       }
-      ml_replace(curwin->w_cursor.lnum, saved_line, false);
+      ml_replace(curwin->w_cursor.lnum, (char *)saved_line, false);
 
       int new_len = (int)STRLEN(saved_line);
 
@@ -1726,8 +1730,8 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
         }
         // Always move extmarks - Here we move only the line where the
         // cursor is, the previous mark_adjust takes care of the lines after
-        int cols_added = mincol-1+less_cols_off-less_cols;
-        extmark_splice(curbuf, (int)lnum-1, mincol-1 - cols_spliced,
+        int cols_added = mincol - 1 + less_cols_off - less_cols;
+        extmark_splice(curbuf, (int)lnum - 1, mincol - 1 - cols_spliced,
                        0, less_cols_off, less_cols_off,
                        1, cols_added, 1 + cols_added, kExtmarkUndo);
       } else {
@@ -1743,20 +1747,20 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
     changed_lines(curwin->w_cursor.lnum, 0, curwin->w_cursor.lnum, 1L, true);
     // bail out and just get the final length of the line we just manipulated
     bcount_t extra = (bcount_t)STRLEN(ml_get(curwin->w_cursor.lnum));
-    extmark_splice(curbuf, (int)curwin->w_cursor.lnum-1, 0,
-                   0, 0, 0, 1, 0, 1+extra, kExtmarkUndo);
+    extmark_splice(curbuf, (int)curwin->w_cursor.lnum - 1, 0,
+                   0, 0, 0, 1, 0, 1 + extra, kExtmarkUndo);
   }
   curbuf_splice_pending--;
 
   curwin->w_cursor.col = newcol;
   curwin->w_cursor.coladd = 0;
 
-  // In VREPLACE mode, we are handling the replace stack ourselves, so stop
-  // fixthisline() from doing it (via change_indent()) by telling it we're in
-  // normal INSERT mode.
+  // In MODE_VREPLACE state, we are handling the replace stack ourselves, so
+  // stop fixthisline() from doing it (via change_indent()) by telling it
+  // we're in normal MODE_INSERT state.
   if (State & VREPLACE_FLAG) {
     vreplace_mode = State;  // So we know to put things right later
-    State = INSERT;
+    State = MODE_INSERT;
   } else {
     vreplace_mode = 0;
   }
@@ -1777,15 +1781,15 @@ int open_line(int dir, int flags, int second_line_indent, bool *did_do_comment)
     State = vreplace_mode;
   }
 
-  // Finally, VREPLACE gets the stuff on the new line, then puts back the
-  // original line, and inserts the new stuff char by char, pushing old stuff
-  // onto the replace stack (via ins_char()).
+  // Finally, MODE_VREPLACE gets the stuff on the new line, then puts back
+  // the original line, and inserts the new stuff char by char, pushing old
+  // stuff onto the replace stack (via ins_char()).
   if (State & VREPLACE_FLAG) {
     // Put new line in p_extra
     p_extra = vim_strsave(get_cursor_line_ptr());
 
     // Put back original line
-    ml_replace(curwin->w_cursor.lnum, next_line, false);
+    ml_replace(curwin->w_cursor.lnum, (char *)next_line, false);
 
     // Insert new stuff into line again
     curwin->w_cursor.col = 0;
@@ -1802,7 +1806,7 @@ theend:
   xfree(next_line);
   xfree(allocated);
   return retval;
-}  // NOLINT(readability/fn_size)
+}
 
 /// Delete from cursor to end of line.
 /// Caller must have prepared for undo.
@@ -1818,7 +1822,7 @@ void truncate_line(int fixpos)
   } else {
     newp = vim_strnsave(ml_get(lnum), (size_t)col);
   }
-  ml_replace(lnum, newp, false);
+  ml_replace(lnum, (char *)newp, false);
 
   // mark the buffer as changed and prepare for displaying
   changed_bytes(lnum, curwin->w_cursor.col);
@@ -1878,7 +1882,7 @@ int get_leader_len(char_u *line, char_u **flags, bool backward, bool include_spa
 {
   int j;
   int got_com = false;
-  char_u part_buf[COM_MAX_LEN];         // buffer for one option part
+  char part_buf[COM_MAX_LEN];         // buffer for one option part
   char_u *string;                  // pointer to comment string
   char_u *list;
   int middle_match_len = 0;
@@ -1902,8 +1906,8 @@ int get_leader_len(char_u *line, char_u **flags, bool backward, bool include_spa
         *flags = list;              // remember where flags started
       }
       prev_list = list;
-      (void)copy_option_part(&list, part_buf, COM_MAX_LEN, ",");
-      string = vim_strchr(part_buf, ':');
+      (void)copy_option_part(&list, (char_u *)part_buf, COM_MAX_LEN, ",");
+      string = (char_u *)vim_strchr(part_buf, ':');
       if (string == NULL) {         // missing ':', ignore this part
         continue;
       }
@@ -1940,8 +1944,7 @@ int get_leader_len(char_u *line, char_u **flags, bool backward, bool include_spa
           string++;
         }
       }
-      for (j = 0; string[j] != NUL && string[j] == line[i + j]; j++) {
-      }
+      for (j = 0; string[j] != NUL && string[j] == line[i + j]; j++) {}
       if (string[j] != NUL) {
         continue;          // string doesn't match
       }
@@ -2026,7 +2029,7 @@ int get_last_leader_offset(char_u *line, char_u **flags)
   char_u *com_leader;
   char_u *com_flags;
   char_u *list;
-  char_u part_buf[COM_MAX_LEN];         // buffer for one option part
+  char part_buf[COM_MAX_LEN];         // buffer for one option part
 
   // Repeat to match several nested comment strings.
   int i = (int)STRLEN(line);
@@ -2038,8 +2041,8 @@ int get_last_leader_offset(char_u *line, char_u **flags)
 
       // Get one option part into part_buf[].  Advance list to next one.
       // put string at start of string.
-      (void)copy_option_part(&list, part_buf, COM_MAX_LEN, ",");
-      string = vim_strchr(part_buf, ':');
+      (void)copy_option_part(&list, (char_u *)part_buf, COM_MAX_LEN, ",");
+      string = (char_u *)vim_strchr(part_buf, ':');
       if (string == NULL) {  // If everything is fine, this cannot actually
                              // happen.
         continue;
@@ -2079,8 +2082,7 @@ int get_last_leader_offset(char_u *line, char_u **flags)
         // whitespace.  Otherwise we would think we are inside a
         // comment if the middle part appears somewhere in the middle
         // of the line.  E.g. for C the "*" appears often.
-        for (j = 0; j <= i && ascii_iswhite(line[j]); j++) {
-        }
+        for (j = 0; j <= i && ascii_iswhite(line[j]); j++) {}
         if (j < i) {
           continue;
         }
@@ -2098,7 +2100,7 @@ int get_last_leader_offset(char_u *line, char_u **flags)
     }
 
     if (found_one) {
-      char_u part_buf2[COM_MAX_LEN];            // buffer for one option part
+      char part_buf2[COM_MAX_LEN];            // buffer for one option part
       int len1, len2, off;
 
       result = i;
@@ -2122,11 +2124,11 @@ int get_last_leader_offset(char_u *line, char_u **flags)
       for (list = curbuf->b_p_com; *list;) {
         char_u *flags_save = list;
 
-        (void)copy_option_part(&list, part_buf2, COM_MAX_LEN, ",");
+        (void)copy_option_part(&list, (char_u *)part_buf2, COM_MAX_LEN, ",");
         if (flags_save == com_flags) {
           continue;
         }
-        string = vim_strchr(part_buf2, ':');
+        string = (char_u *)vim_strchr(part_buf2, ':');
         string++;
         while (ascii_iswhite(*string)) {
           string++;

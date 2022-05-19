@@ -9,7 +9,7 @@
 #include "nvim/charset.h"
 #include "nvim/edit.h"
 #include "nvim/eval.h"
-#include "nvim/keymap.h"
+#include "nvim/keycodes.h"
 #include "nvim/memory.h"
 #include "nvim/message.h"
 #include "nvim/mouse.h"
@@ -17,12 +17,10 @@
 #include "nvim/vim.h"
 
 #ifdef INCLUDE_GENERATED_DECLARATIONS
-# include "keymap.c.generated.h"
+# include "keycodes.c.generated.h"
 #endif
 
-/*
- * Some useful tables.
- */
+// Some useful tables.
 
 static const struct modmasktable {
   uint16_t mod_mask;  ///< Bit-mask for particular key modifier.
@@ -43,10 +41,9 @@ static const struct modmasktable {
   // NOTE: when adding an entry, update MAX_KEY_NAME_LEN!
 };
 
-/*
- * Shifted key terminal codes and their unshifted equivalent.
- * Don't add mouse codes here, they are handled separately!
- */
+// Shifted key terminal codes and their unshifted equivalent.
+// Don't add mouse codes here, they are handled separately!
+
 #define MOD_KEYS_ENTRY_SIZE 5
 
 static char_u modifier_keys_table[] =
@@ -221,6 +218,35 @@ static const struct key_name_entry {
   { K_F35,             "F35" },
   { K_F36,             "F36" },
   { K_F37,             "F37" },
+  { K_F38,             "F38" },
+  { K_F39,             "F39" },
+  { K_F40,             "F40" },
+
+  { K_F41,             "F41" },
+  { K_F42,             "F42" },
+  { K_F43,             "F43" },
+  { K_F44,             "F44" },
+  { K_F45,             "F45" },
+  { K_F46,             "F46" },
+  { K_F47,             "F47" },
+  { K_F48,             "F48" },
+  { K_F49,             "F49" },
+  { K_F50,             "F50" },
+
+  { K_F51,             "F51" },
+  { K_F52,             "F52" },
+  { K_F53,             "F53" },
+  { K_F54,             "F54" },
+  { K_F55,             "F55" },
+  { K_F56,             "F56" },
+  { K_F57,             "F57" },
+  { K_F58,             "F58" },
+  { K_F59,             "F59" },
+  { K_F60,             "F60" },
+
+  { K_F61,             "F61" },
+  { K_F62,             "F62" },
+  { K_F63,             "F63" },
 
   { K_XF1,             "xF1" },
   { K_XF2,             "xF2" },
@@ -432,10 +458,7 @@ int handle_x_keys(const int key)
   return key;
 }
 
-/*
- * Return a string which contains the name of the given key when the given
- * modifiers are down.
- */
+/// @return  a string which contains the name of the given key when the given modifiers are down.
 char_u *get_special_key_name(int c, int modifiers)
 {
   static char_u string[MAX_KEY_NAME_LEN + 1];
@@ -452,10 +475,8 @@ char_u *get_special_key_name(int c, int modifiers)
     c = KEY2TERMCAP1(c);
   }
 
-  /*
-   * Translate shifted special keys into unshifted keys and set modifier.
-   * Same for CTRL and ALT modifiers.
-   */
+  // Translate shifted special keys into unshifted keys and set modifier.
+  // Same for CTRL and ALT modifiers.
   if (IS_SPECIAL(c)) {
     for (i = 0; modifier_keys_table[i] != 0; i += MOD_KEYS_ENTRY_SIZE) {
       if (KEY2TERMCAP0(c) == (int)modifier_keys_table[i + 1]
@@ -471,10 +492,8 @@ char_u *get_special_key_name(int c, int modifiers)
   // try to find the key in the special key table
   table_idx = find_special_key_in_table(c);
 
-  /*
-   * When not a known special key, and not a printable character, try to
-   * extract modifiers.
-   */
+  // When not a known special key, and not a printable character, try to
+  // extract modifiers.
   if (c > 0
       && utf_char2len(c) == 1) {
     if (table_idx < 0
@@ -509,7 +528,7 @@ char_u *get_special_key_name(int c, int modifiers)
     } else {
       // Not a special key, only modifiers, output directly.
       if (utf_char2len(c) > 1) {
-        idx += utf_char2bytes(c, string + idx);
+        idx += utf_char2bytes(c, (char *)string + idx);
       } else if (vim_isprintc(c)) {
         string[idx++] = (char_u)c;
       } else {
@@ -539,31 +558,30 @@ char_u *get_special_key_name(int c, int modifiers)
 /// @param[in]  src_len  Length of the srcp.
 /// @param[out]  dst  Location where translation result will be kept. It must
 //                    be at least 19 bytes per "<x>" form.
-/// @param[in]  keycode  Prefer key code, e.g. K_DEL in place of DEL.
-/// @param[in]  in_string  Inside a double quoted string
+/// @param[in]  flags  FSK_ values
+/// @param[in]  escape_ks  escape K_SPECIAL bytes in the character
+/// @param[out]  did_simplify  found <C-H>, etc.
 ///
 /// @return Number of characters added to dst, zero for no match.
-unsigned int trans_special(const char_u **srcp, const size_t src_len, char_u *const dst,
-                           const bool keycode, const bool in_string)
-  FUNC_ATTR_NONNULL_ALL FUNC_ATTR_WARN_UNUSED_RESULT
+unsigned int trans_special(const char_u **const srcp, const size_t src_len, char_u *const dst,
+                           const int flags, const bool escape_ks, bool *const did_simplify)
+  FUNC_ATTR_NONNULL_ARG(1, 3) FUNC_ATTR_WARN_UNUSED_RESULT
 {
   int modifiers = 0;
-  int key;
-
-  key = find_special_key(srcp, src_len, &modifiers, keycode, false, in_string);
+  int key = find_special_key(srcp, src_len, &modifiers, flags, did_simplify);
   if (key == 0) {
     return 0;
   }
 
-  return special_to_buf(key, modifiers, keycode, dst);
+  return special_to_buf(key, modifiers, escape_ks, dst);
 }
 
 /// Put the character sequence for "key" with "modifiers" into "dst" and return
 /// the resulting length.
-/// When "keycode" is true prefer key code, e.g. K_DEL instead of DEL.
+/// When "escape_ks" is true escape K_SPECIAL bytes in the character.
 /// The sequence is not NUL terminated.
 /// This is how characters in a string are encoded.
-unsigned int special_to_buf(int key, int modifiers, bool keycode, char_u *dst)
+unsigned int special_to_buf(int key, int modifiers, bool escape_ks, char_u *dst)
 {
   unsigned int dlen = 0;
 
@@ -578,12 +596,12 @@ unsigned int special_to_buf(int key, int modifiers, bool keycode, char_u *dst)
     dst[dlen++] = K_SPECIAL;
     dst[dlen++] = (char_u)KEY2TERMCAP0(key);
     dst[dlen++] = KEY2TERMCAP1(key);
-  } else if (!keycode) {
-    dlen += (unsigned int)utf_char2bytes(key, dst + dlen);
-  } else {
+  } else if (escape_ks) {
     char_u *after = add_char2buf(key, dst + dlen);
     assert(after >= dst && (uintmax_t)(after - dst) <= UINT_MAX);
     dlen = (unsigned int)(after - dst);
+  } else {
+    dlen += (unsigned int)utf_char2bytes(key, (char *)dst + dlen);
   }
 
   return dlen;
@@ -594,20 +612,20 @@ unsigned int special_to_buf(int key, int modifiers, bool keycode, char_u *dst)
 /// @param[in,out]  srcp  Translated <> name. Is advanced to after the <> name.
 /// @param[in]  src_len  srcp length.
 /// @param[out]  modp  Location where information about modifiers is saved.
-/// @param[in]  keycode  Prefer key code, e.g. K_DEL in place of DEL.
-/// @param[in]  keep_x_key  Don’t translate xHome to Home key.
-/// @param[in]  in_string  In string, double quote is escaped
+/// @param[in]  flags  FSK_ values
+/// @param[out]  did_simplify  FSK_SIMPLIFY and found <C-H>, etc.
 ///
 /// @return Key and modifiers or 0 if there is no match.
-int find_special_key(const char_u **srcp, const size_t src_len, int *const modp, const bool keycode,
-                     const bool keep_x_key, const bool in_string)
-  FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_NONNULL_ALL
+int find_special_key(const char_u **const srcp, const size_t src_len, int *const modp,
+                     const int flags, bool *const did_simplify)
+  FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_NONNULL_ARG(1, 3)
 {
   const char_u *last_dash;
   const char_u *end_of_name;
   const char_u *src;
   const char_u *bp;
   const char_u *const end = *srcp + src_len - 1;
+  const bool in_string = flags & FSK_IN_STRING;
   int modifiers;
   int bit;
   int key;
@@ -622,6 +640,9 @@ int find_special_key(const char_u **srcp, const size_t src_len, int *const modp,
   if (src[0] != '<') {
     return 0;
   }
+  if (src[1] == '*') {  // <*xxx>: do not simplify
+    src++;
+  }
 
   // Find end of modifier list
   last_dash = src;
@@ -633,7 +654,7 @@ int find_special_key(const char_u **srcp, const size_t src_len, int *const modp,
         // Anything accepted, like <C-?>.
         // <C-"> or <M-"> are not special in strings as " is
         // the string delimiter. With a backslash it works: <M-\">
-        if (end - bp > l && !(in_string && bp[1] == '"') && bp[l+1] == '>') {
+        if (end - bp > l && !(in_string && bp[1] == '"') && bp[l + 1] == '>') {
           bp += l;
         } else if (end - bp > 2 && in_string && bp[1] == '\\'
                    && bp[2] == '"' && bp[3] == '>') {
@@ -688,13 +709,13 @@ int find_special_key(const char_u **srcp, const size_t src_len, int *const modp,
           // Special case for a double-quoted string
           off = l = 2;
         } else {
-          l = utfc_ptr2len(last_dash + 1);
+          l = utfc_ptr2len((char *)last_dash + 1);
         }
         if (modifiers != 0 && last_dash[l + 1] == '>') {
-          key = utf_ptr2char(last_dash + off);
+          key = utf_ptr2char((char *)last_dash + off);
         } else {
           key = get_special_key_code(last_dash + off);
-          if (!keep_x_key) {
+          if (!(flags & FSK_KEEP_X_KEY)) {
             key = handle_x_keys(key);
           }
         }
@@ -707,7 +728,7 @@ int find_special_key(const char_u **srcp, const size_t src_len, int *const modp,
         // includes the modifier.
         key = simplify_key(key, &modifiers);
 
-        if (!keycode) {
+        if (!(flags & FSK_KEYCODE)) {
           // don't want keycode, use single byte code
           if (key == K_BS) {
             key = BS;
@@ -719,7 +740,7 @@ int find_special_key(const char_u **srcp, const size_t src_len, int *const modp,
         // Normal Key with modifier:
         // Try to make a single byte code (except for Alt/Meta modifiers).
         if (!IS_SPECIAL(key)) {
-          key = extract_modifiers(key, &modifiers);
+          key = extract_modifiers(key, &modifiers, flags & FSK_SIMPLIFY, did_simplify);
         }
 
         *modp = modifiers;
@@ -733,7 +754,10 @@ int find_special_key(const char_u **srcp, const size_t src_len, int *const modp,
 
 /// Try to include modifiers (except alt/meta) in the key.
 /// Changes "Shift-a" to 'A', "Ctrl-@" to <Nul>, etc.
-static int extract_modifiers(int key, int *modp)
+/// @param[in]  simplify  if false, don't do Ctrl
+/// @param[out]  did_simplify  set when it is not NULL and "simplify" is true and
+///                            Ctrl is removed from modifiers
+static int extract_modifiers(int key, int *modp, const bool simplify, bool *const did_simplify)
 {
   int modifiers = *modp;
 
@@ -744,15 +768,19 @@ static int extract_modifiers(int key, int *modp)
       modifiers &= ~MOD_MASK_SHIFT;
     }
   }
-  if ((modifiers & MOD_MASK_CTRL) && ((key >= '?' && key <= '_') || ASCII_ISALPHA(key))) {
+  // <C-H> and <C-h> mean the same thing, always use "H"
+  if ((modifiers & MOD_MASK_CTRL) && ASCII_ISALPHA(key)) {
     key = TOUPPER_ASC(key);
-    int new_key = Ctrl_chr(key);
-    if (new_key != TAB && new_key != CAR && new_key != ESC) {
-      key = new_key;
-      modifiers &= ~MOD_MASK_CTRL;
-      if (key == 0) {  // <C-@> is <Nul>
-        key = K_ZERO;
-      }
+  }
+  if (simplify && (modifiers & MOD_MASK_CTRL)
+      && ((key >= '?' && key <= '_') || ASCII_ISALPHA(key))) {
+    key = CTRL_CHR(key);
+    modifiers &= ~MOD_MASK_CTRL;
+    if (key == NUL) {  // <C-@> is <Nul>
+      key = K_ZERO;
+    }
+    if (did_simplify != NULL) {
+      *did_simplify = true;
     }
   }
 
@@ -760,10 +788,8 @@ static int extract_modifiers(int key, int *modp)
   return key;
 }
 
-/*
- * Try to find key "c" in the special key table.
- * Return the index when found, -1 when not found.
- */
+/// Try to find key "c" in the special key table.
+/// @return  the index when found, -1 when not found.
 int find_special_key_in_table(int c)
 {
   int i;
@@ -806,10 +832,8 @@ int get_special_key_code(const char_u *name)
   return 0;
 }
 
-/*
- * Look up the given mouse code to return the relevant information in the other
- * arguments.  Return which button is down or was released.
- */
+/// Look up the given mouse code to return the relevant information in the other arguments.
+/// @return  which button is down or was released.
 int get_mouse_button(int code, bool *is_click, bool *is_drag)
 {
   int i;
@@ -824,55 +848,52 @@ int get_mouse_button(int code, bool *is_click, bool *is_drag)
   return 0;         // Shouldn't get here
 }
 
-/// Replace any terminal code strings with the equivalent internal
-/// representation
+/// Replace any terminal code strings with the equivalent internal representation.
 ///
-/// Used for the "from" and "to" part of a mapping, and the "to" part of
-/// a menu command. Any strings like "<C-UP>" are also replaced, unless
-/// `special` is false. K_SPECIAL by itself is replaced by K_SPECIAL
-/// KS_SPECIAL KE_FILLER.
+/// Used for the "from" and "to" part of a mapping, and the "to" part of a menu command.
+/// Any strings like "<C-UP>" are also replaced, unless `special` is false.
+/// K_SPECIAL by itself is replaced by K_SPECIAL KS_SPECIAL KE_FILLER.
+///
+/// When "flags" has REPTERM_FROM_PART, trailing <C-v> is included, otherwise it is removed (to make
+/// ":map xx ^V" map xx to nothing). When cpo_flags contains FLAG_CPO_BSLASH, a backslash can be
+/// used in place of <C-v>. All other <C-v> characters are removed.
 ///
 /// @param[in]  from  What characters to replace.
 /// @param[in]  from_len  Length of the "from" argument.
-/// @param[out]  bufp  Location where results were saved in case of success
-///                    (allocated). Will be set to NULL in case of failure.
-/// @param[in]  do_lt  If true, also translate <lt>.
-/// @param[in]  from_part  If true, trailing <C-v> is included, otherwise it is
-///                        removed (to make ":map xx ^V" map xx to nothing).
-///                        When cpo_flags contains #FLAG_CPO_BSLASH, a backslash
-///                        can be used in place of <C-v>. All other <C-v>
-///                        characters are removed.
-/// @param[in]  special    Replace keycodes, e.g. <CR> becomes a "\n" char.
-/// @param[in]  cpo_flags  Relevant flags derived from p_cpo, see
-///                        #CPO_TO_CPO_FLAGS.
+/// @param[out]  bufp  Location where results were saved in case of success (allocated).
+///                    Will be set to NULL in case of failure.
+/// @param[in]  flags  REPTERM_FROM_PART    see above
+///                    REPTERM_DO_LT        also translate <lt>
+///                    REPTERM_NO_SPECIAL   do not accept <key> notation
+///                    REPTERM_NO_SIMPLIFY  do not simplify <C-H> into 0x08, etc.
+/// @param[out]  did_simplify  set when some <C-H> code was simplied, unless it is NULL.
+/// @param[in]  cpo_flags  Relevant flags derived from p_cpo, see CPO_TO_CPO_FLAGS.
 ///
-/// @return Pointer to an allocated memory in case of success, "from" in case of
-///         failure. In case of success returned pointer is also saved to
-///         "bufp".
-char_u *replace_termcodes(const char_u *from, const size_t from_len, char_u **bufp,
-                          const bool from_part, const bool do_lt, const bool special, int cpo_flags)
-  FUNC_ATTR_NONNULL_ALL
+/// @return  Pointer to an allocated memory, which is also saved to "bufp".
+char *replace_termcodes(const char *const from, const size_t from_len, char **const bufp,
+                        const int flags, bool *const did_simplify, const int cpo_flags)
+  FUNC_ATTR_NONNULL_ARG(1, 3)
 {
   ssize_t i;
   size_t slen;
   char_u key;
   size_t dlen = 0;
   const char_u *src;
-  const char_u *const end = from + from_len - 1;
-  int do_backslash;             // backslash is a special character
+  const char_u *const end = (char_u *)from + from_len - 1;
   char_u *result;          // buffer for resulting string
 
-  do_backslash = !(cpo_flags&FLAG_CPO_BSLASH);
+  const bool do_backslash = !(cpo_flags & FLAG_CPO_BSLASH);  // backslash is a special character
+  const bool do_special = !(flags & REPTERM_NO_SPECIAL);
 
   // Allocate space for the translation.  Worst case a single character is
   // replaced by 6 bytes (shifted special key), plus a NUL at the end.
   const size_t buf_len = from_len * 6 + 1;
   result = xmalloc(buf_len);
 
-  src = from;
+  src = (char_u *)from;
 
   // Check for #n at start only: function key n
-  if (from_part && from_len > 1 && src[0] == '#'
+  if ((flags & REPTERM_FROM_PART) && from_len > 1 && src[0] == '#'
       && ascii_isdigit(src[1])) {  // function key
     result[dlen++] = K_SPECIAL;
     result[dlen++] = 'k';
@@ -887,8 +908,8 @@ char_u *replace_termcodes(const char_u *from, const size_t from_len, char_u **bu
   // Copy each byte from *from to result[dlen]
   while (src <= end) {
     // Check for special <> keycodes, like "<C-S-LeftMouse>"
-    if (special && (do_lt || ((end - src) >= 3
-                              && STRNCMP(src, "<lt>", 4) != 0))) {
+    if (do_special && ((flags & REPTERM_DO_LT) || ((end - src) >= 3
+                                                   && STRNCMP(src, "<lt>", 4) != 0))) {
       // Replace <SID> by K_SNR <script-nr> _.
       // (room: 5 * 6 = 30 bytes; needed: 3 + <nr> + 1 <= 14)
       if (end - src >= 4 && STRNICMP(src, "<SID>", 5) == 0) {
@@ -907,15 +928,16 @@ char_u *replace_termcodes(const char_u *from, const size_t from_len, char_u **bu
         }
       }
 
-      slen = trans_special(&src, (size_t)(end - src) + 1, result + dlen, true,
-                           false);
+      slen = trans_special(&src, (size_t)(end - src) + 1, result + dlen,
+                           FSK_KEYCODE | ((flags & REPTERM_NO_SIMPLIFY) ? 0 : FSK_SIMPLIFY),
+                           true, did_simplify);
       if (slen) {
         dlen += slen;
         continue;
       }
     }
 
-    if (special) {
+    if (do_special) {
       char_u *p, *s, len;
 
       // Replace <Leader> by the value of "mapleader".
@@ -955,7 +977,7 @@ char_u *replace_termcodes(const char_u *from, const size_t from_len, char_u **bu
     if (key == Ctrl_V || (do_backslash && key == '\\')) {
       src++;  // skip CTRL-V or backslash
       if (src > end) {
-        if (from_part) {
+        if (flags & REPTERM_FROM_PART) {
           result[dlen++] = key;
         }
         break;
@@ -973,7 +995,7 @@ char_u *replace_termcodes(const char_u *from, const size_t from_len, char_u **bu
       } else {
         result[dlen++] = *src;
       }
-      ++src;
+      src++;
     }
   }
   result[dlen] = NUL;

@@ -394,7 +394,7 @@ nlua_pop_typval_table_processing_end:
                                     state);
 
       cur.tv->v_type = VAR_FUNC;
-      cur.tv->vval.v_string = vim_strsave(name);
+      cur.tv->vval.v_string = (char *)vim_strsave(name);
       break;
     }
     case LUA_TUSERDATA: {
@@ -1236,7 +1236,7 @@ LuaRef nlua_pop_LuaRef(lua_State *const lstate, Error *err)
     type ret; \
     if (lua_type(lstate, -1) != LUA_TNUMBER) { \
       api_set_error(err, kErrorTypeValidation, "Expected Lua number"); \
-      ret = (type)-1; \
+      ret = (type) - 1; \
     } else { \
       ret = (type)lua_tonumber(lstate, -1); \
     } \

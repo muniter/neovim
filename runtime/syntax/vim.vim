@@ -23,7 +23,7 @@ syn cluster vimCommentGroup	contains=vimTodo,@Spell
 " Special and plugin vim commands {{{2
 syn match   vimCommand contained	"\<z[-+^.=]\=\>"
 syn keyword vimOnlyCommand contained	fix[del] op[en] sh[ell] P[rint]
-syn keyword vimStdPlugin contained	DiffOrig Man N[ext] S TOhtml XMLent XMLns
+syn keyword vimStdPlugin contained Arguments Asm Break Cfilter Clear Continue DiffOrig Evaluate Finish Gdb Lfilter Man N[ext] Over P[rint] Program Run S Source Step Stop Termdebug TermdebugCommand TOhtml Until Winbar XMLent XMLns
 
 " Vim-specific options {{{2
 syn keyword vimOnlyOption contained	biosk bioskey cp compatible consk conskey cm cryptmethod edcompatible guipty key macatsui mzq mzquantum osfiletype oft renderoptions rop st shelltype sn shortname tenc termencoding ta textauto tx textmode tf ttyfast ttym ttymouse tbi ttybuiltin wiv weirdinvert
@@ -120,9 +120,6 @@ else
  com! -nargs=*	VimFoldt	<args>
 endif
 
-" commands not picked up by the generator (due to non-standard format) {{{2
-syn keyword vimCommand contained	py3
-
 " Deprecated variable options {{{2
 if exists("g:vim_minlines")
  let g:vimsyn_minlines= g:vim_minlines
@@ -202,7 +199,7 @@ syn keyword vimAugroupKey contained	aug[roup]
 
 " Operators: {{{2
 " =========
-syn cluster	vimOperGroup	contains=vimEnvvar,vimFunc,vimFuncVar,vimOper,vimOperParen,vimNumber,vimString,vimType,vimRegister,vimContinue,vim9Comment
+syn cluster	vimOperGroup	contains=vimEnvvar,vimFunc,vimFuncVar,vimOper,vimOperParen,vimNumber,vimString,vimType,vimRegister,vimContinue,vim9Comment,vimVar
 syn match	vimOper	"||\|&&\|[-+.!]"				skipwhite nextgroup=vimString,vimSpecFile
 syn match	vimOper	"\%#=1\(==\|!=\|>=\|<=\|=\~\|!\~\|>\|<\|=\|!\~#\)[?#]\{0,2}"	skipwhite nextgroup=vimString,vimSpecFile
 syn match	vimOper	"\(\<is\|\<isnot\)[?#]\{0,2}\>"			skipwhite nextgroup=vimString,vimSpecFile
@@ -437,8 +434,9 @@ syn case match
 " User Function Highlighting: {{{2
 " (following Gautam Iyer's suggestion)
 " ==========================
-syn match vimFunc		"\%(\%([sSgGbBwWtTlL]:\|<[sS][iI][dD]>\)\=\%(\w\+\.\)*\I[a-zA-Z0-9_.]*\)\ze\s*("		contains=vimFuncName,vimUserFunc,vimExecute
-syn match vimUserFunc contained	"\%(\%([sSgGbBwWtTlL]:\|<[sS][iI][dD]>\)\=\%(\w\+\.\)*\I[a-zA-Z0-9_.]*\)\|\<\u[a-zA-Z0-9.]*\>\|\<if\>"	contains=vimNotation
+syn match vimFunc		"\%(\%([sSgGbBwWtTlL]:\|<[sS][iI][dD]>\)\=\%(\w\+\.\)*\I[a-zA-Z0-9_.]*\)\ze\s*("		contains=vimCommand,vimFuncEcho,vimFuncName,vimUserFunc,vimExecute
+syn match vimUserFunc contained	"\%(\%([sSgGbBwWtTlL]:\|<[sS][iI][dD]>\)\=\%(\w\+\.\)*\I[a-zA-Z0-9_.]*\)\|\<\u[a-zA-Z0-9.]*\>\|\<if\>"	contains=vimCommand,vimNotation
+syn keyword vimFuncEcho contained	ec ech echo
 
 " User Command Highlighting: {{{2
 "syn match vimUsrCmd	'^\s*\zs\u\w*.*$'
@@ -875,6 +873,7 @@ if !exists("skip_vim_syntax_inits")
  hi def link vimError	Error
  hi def link vimFBVar	vimVar
  hi def link vimFgBgAttrib	vimHiAttrib
+ hi def link vimFuncEcho	vimCommand
  hi def link vimHiCtermul	vimHiTerm
  hi def link vimFold	Folded
  hi def link vimFTCmd	vimCommand

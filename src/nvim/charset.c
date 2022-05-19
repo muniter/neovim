@@ -275,7 +275,7 @@ void trans_characters(char_u *buf, int bufsize)
   while (*buf != 0) {
     int trs_len;      // length of trs[]
     // Assume a multi-byte character doesn't need translation.
-    if ((trs_len = utfc_ptr2len(buf)) > 1) {
+    if ((trs_len = utfc_ptr2len((char *)buf)) > 1) {
       len -= trs_len;
     } else {
       trs = transchar_byte(*buf);
@@ -311,7 +311,7 @@ size_t transstr_len(const char *const s, bool untab)
   size_t len = 0;
 
   while (*p) {
-    const size_t l = (size_t)utfc_ptr2len((const char_u *)p);
+    const size_t l = (size_t)utfc_ptr2len(p);
     if (l > 1) {
       int pcc[MAX_MCO + 1];
       pcc[0] = utfc_ptr2char((const char_u *)p, &pcc[1]);
@@ -354,7 +354,7 @@ size_t transstr_buf(const char *const s, char *const buf, const size_t len, bool
   char *const buf_e = buf_p + len - 1;
 
   while (*p != NUL && buf_p < buf_e) {
-    const size_t l = (size_t)utfc_ptr2len((const char_u *)p);
+    const size_t l = (size_t)utfc_ptr2len(p);
     if (l > 1) {
       if (buf_p + l > buf_e) {
         break;  // Exceeded `buf` size.
@@ -424,10 +424,10 @@ char_u *str_foldcase(char_u *str, int orglen, char_u *buf, int buflen)
   int i;
   int len = orglen;
 
-#define GA_CHAR(i) ((char_u *)ga.ga_data)[i]
-#define GA_PTR(i) ((char_u *)ga.ga_data + i)
+#define GA_CHAR(i) ((char *)ga.ga_data)[i]
+#define GA_PTR(i) ((char_u *)ga.ga_data + (i))
 #define STR_CHAR(i) (buf == NULL ? GA_CHAR(i) : buf[i])
-#define STR_PTR(i) (buf == NULL ? GA_PTR(i) : buf + i)
+#define STR_PTR(i) (buf == NULL ? GA_PTR(i) : buf + (i))
 
   // Copy "str" into "buf" or allocated memory, unmodified.
   if (buf == NULL) {
@@ -453,8 +453,8 @@ char_u *str_foldcase(char_u *str, int orglen, char_u *buf, int buflen)
   // Make each character lower case.
   i = 0;
   while (STR_CHAR(i) != NUL) {
-    int c = utf_ptr2char(STR_PTR(i));
-    int olen = utf_ptr2len(STR_PTR(i));
+    int c = utf_ptr2char((char *)STR_PTR(i));
+    int olen = utf_ptr2len((char *)STR_PTR(i));
     int lc = mb_tolower(c);
 
     // Only replace the character when it is not an invalid
@@ -488,11 +488,11 @@ char_u *str_foldcase(char_u *str, int orglen, char_u *buf, int buflen)
           }
         }
       }
-      (void)utf_char2bytes(lc, STR_PTR(i));
+      (void)utf_char2bytes(lc, (char *)STR_PTR(i));
     }
 
     // skip to next multi-byte char
-    i += utfc_ptr2len(STR_PTR(i));
+    i += utfc_ptr2len((char *)STR_PTR(i));
   }
 
 
@@ -654,6 +654,7 @@ static inline unsigned nr2hex(unsigned n)
 ///
 /// @reeturn Number of display cells.
 int byte2cells(int b)
+  FUNC_ATTR_PURE
 {
   if (b >= 0x80) {
     return 0;
@@ -692,7 +693,7 @@ int ptr2cells(const char_u *p)
 {
   // For UTF-8 we need to look at more bytes if the first byte is >= 0x80.
   if (*p >= 0x80) {
-    return utf_ptr2cells(p);
+    return utf_ptr2cells((char *)p);
   }
 
   // For DBCS we can tell the cell count from the first byte.
@@ -726,7 +727,7 @@ int vim_strnsize(char_u *s, int len)
   assert(s != NULL);
   int size = 0;
   while (*s != NUL && --len >= 0) {
-    int l = utfc_ptr2len(s);
+    int l = utfc_ptr2len((char *)s);
     size += ptr2cells(s);
     s += l;
     len -= l - 1;
@@ -805,7 +806,7 @@ bool vim_iswordp_buf(const char_u *const p, buf_T *const buf)
   int c = *p;
 
   if (MB_BYTE2LEN(c) > 1) {
-    c = utf_ptr2char(p);
+    c = utf_ptr2char((char *)p);
   }
   return vim_iswordc_buf(c, buf);
 }
@@ -956,7 +957,7 @@ void getvcol(win_T *wp, pos_T *pos, colnr_T *start, colnr_T *cursor, colnr_T *en
         // For utf-8, if the byte is >= 0x80, need to look at
         // further bytes to find the cell width.
         if (c >= 0x80) {
-          incr = utf_ptr2cells(ptr);
+          incr = utf_ptr2cells((char *)ptr);
         } else {
           incr = g_chartab[c] & CT_CELL_MASK;
         }
@@ -1014,7 +1015,7 @@ void getvcol(win_T *wp, pos_T *pos, colnr_T *start, colnr_T *cursor, colnr_T *en
 
   if (cursor != NULL) {
     if ((*ptr == TAB)
-        && (State & NORMAL)
+        && (State & MODE_NORMAL)
         && !wp->w_p_list
         && !virtual_active()
         && !(VIsual_active && ((*p_sel == 'e') || ltoreq(*pos, VIsual)))) {
@@ -1069,7 +1070,7 @@ void getvvcol(win_T *wp, pos_T *pos, colnr_T *start, colnr_T *cursor, colnr_T *e
     char_u *ptr = ml_get_buf(wp->w_buffer, pos->lnum, false);
 
     if (pos->col < (colnr_T)STRLEN(ptr)) {
-      int c = utf_ptr2char(ptr + pos->col);
+      int c = utf_ptr2char((char *)ptr + pos->col);
       if ((c != TAB) && vim_isprintc(c)) {
         endadd = (colnr_T)(char2cells(c) - 1);
         if (coladd > endadd) {
@@ -1143,11 +1144,11 @@ void getvcols(win_T *wp, pos_T *pos1, pos_T *pos2, colnr_T *left, colnr_T *right
 /// @param[in]  p  String to skip in.
 ///
 /// @return Pointer to character after the skipped whitespace.
-char_u *skipwhite(const char_u *const p)
+char *skipwhite(const char *const p)
   FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_NONNULL_ALL
   FUNC_ATTR_NONNULL_RET
 {
-  return skipwhite_len(p, STRLEN(p));
+  return (char *)skipwhite_len((char_u *)p, STRLEN(p));
 }
 
 /// Like `skipwhite`, but skip up to `len` characters.
@@ -1176,8 +1177,9 @@ intptr_t getwhitecols_curline(void)
 }
 
 intptr_t getwhitecols(const char_u *p)
+  FUNC_ATTR_PURE
 {
-  return skipwhite(p) - p;
+  return (char_u *)skipwhite((char *)p) - p;
 }
 
 /// Skip over digits
@@ -1185,16 +1187,16 @@ intptr_t getwhitecols(const char_u *p)
 /// @param[in]  q  String to skip digits in.
 ///
 /// @return Pointer to the character after the skipped digits.
-char_u *skipdigits(const char_u *q)
+char *skipdigits(const char *q)
   FUNC_ATTR_PURE FUNC_ATTR_WARN_UNUSED_RESULT FUNC_ATTR_NONNULL_ALL
   FUNC_ATTR_NONNULL_RET
 {
-  const char_u *p = q;
+  const char *p = q;
   while (ascii_isdigit(*p)) {
     // skip to next non-digit
     p++;
   }
-  return (char_u *)p;
+  return (char *)p;
 }
 
 /// skip over binary digits
@@ -1222,6 +1224,7 @@ const char *skipbin(const char *q)
 /// @return Pointer to the character after the skipped digits and hex
 ///         characters.
 char_u *skiphex(char_u *q)
+  FUNC_ATTR_PURE
 {
   char_u *p = q;
   while (ascii_isxdigit(*p)) {
@@ -1237,6 +1240,7 @@ char_u *skiphex(char_u *q)
 ///
 /// @return Pointer to the digit or (NUL after the string).
 char_u *skiptodigit(char_u *q)
+  FUNC_ATTR_PURE
 {
   char_u *p = q;
   while (*p != NUL && !ascii_isdigit(*p)) {
@@ -1270,6 +1274,7 @@ const char *skiptobin(const char *q)
 ///
 /// @return Pointer to the hex character or (NUL after the string).
 char_u *skiptohex(char_u *q)
+  FUNC_ATTR_PURE
 {
   char_u *p = q;
   while (*p != NUL && !ascii_isxdigit(*p)) {
@@ -1285,7 +1290,7 @@ char_u *skiptohex(char_u *q)
 ///
 /// @return Pointer to the next whitespace or NUL character.
 char_u *skiptowhite(const char_u *p)
-  FUNC_ATTR_NONNULL_ALL
+  FUNC_ATTR_NONNULL_ALL FUNC_ATTR_PURE
 {
   while (*p != ' ' && *p != '\t' && *p != NUL) {
     p++;
@@ -1299,6 +1304,7 @@ char_u *skiptowhite(const char_u *p)
 ///
 /// @return Pointer to the next whitespace character.
 char_u *skiptowhite_esc(char_u *p)
+  FUNC_ATTR_PURE
 {
   while (*p != ' ' && *p != '\t' && *p != NUL) {
     if (((*p == '\\') || (*p == Ctrl_V)) && (*(p + 1) != NUL)) {
@@ -1392,8 +1398,9 @@ long getdigits_long(char_u **pp, bool strict, long def)
 ///
 /// @param  lbuf  line buffer to check
 bool vim_isblankline(char_u *lbuf)
+  FUNC_ATTR_PURE
 {
-  char_u *p = skipwhite(lbuf);
+  char_u *p = (char_u *)skipwhite((char *)lbuf);
   return *p == NUL || *p == '\r' || *p == '\n';
 }
 
@@ -1534,6 +1541,7 @@ void vim_str2nr(const char_u *const start, int *const prep, int *const len, cons
 
   // Do the conversion manually to avoid sscanf() quirks.
   abort();  // Should’ve used goto earlier.
+  // -V:PARSE_NUMBER:560
 #define PARSE_NUMBER(base, cond, conv) \
   do { \
     const char *const after_prefix = ptr; \
@@ -1618,6 +1626,7 @@ vim_str2nr_proceed:
 ///
 /// @return The value of the hex character.
 int hex2nr(int c)
+  FUNC_ATTR_CONST
 {
   if ((c >= 'a') && (c <= 'f')) {
     return c - 'a' + 10;
@@ -1632,6 +1641,7 @@ int hex2nr(int c)
 /// Convert two hex characters to a byte.
 /// Return -1 if one of the characters is not hex.
 int hexhex2nr(char_u *p)
+  FUNC_ATTR_PURE
 {
   if (!ascii_isxdigit(p[0]) || !ascii_isxdigit(p[1])) {
     return -1;

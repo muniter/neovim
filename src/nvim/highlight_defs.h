@@ -63,6 +63,7 @@ typedef enum {
   HLF_E,          // error messages
   HLF_I,          // incremental search
   HLF_L,          // last search string
+  HLF_LC,         // current search match
   HLF_M,          // "--More--" message
   HLF_CM,         // Mode (e.g., "-- INSERT --")
   HLF_N,          // line number for ":number" and ":#" commands
@@ -110,7 +111,9 @@ typedef enum {
   HLF_NFLOAT,     // Floating window
   HLF_MSG,        // Message area
   HLF_BORDER,     // Floating window border
-  HLF_COUNT,  // MUST be the last one
+  HLF_WBR,        // Window bars
+  HLF_WBRNC,      // Window bars of not-current windows
+  HLF_COUNT,      // MUST be the last one
 } hlf_T;
 
 EXTERN const char *hlf_names[] INIT(= {
@@ -123,6 +126,7 @@ EXTERN const char *hlf_names[] INIT(= {
   [HLF_E] = "ErrorMsg",
   [HLF_I] = "IncSearch",
   [HLF_L] = "Search",
+  [HLF_LC] = "CurSearch",
   [HLF_M] = "MoreMsg",
   [HLF_CM] = "ModeMsg",
   [HLF_N] = "LineNr",
@@ -170,6 +174,8 @@ EXTERN const char *hlf_names[] INIT(= {
   [HLF_NFLOAT] = "NormalFloat",
   [HLF_MSG] = "MsgArea",
   [HLF_BORDER] = "FloatBorder",
+  [HLF_WBR] = "WinBar",
+  [HLF_WBRNC] = "WinBarNC",
 });
 
 

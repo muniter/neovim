@@ -351,6 +351,15 @@ return {
       defaults={if_true="if,else,while,do,for,switch"}
     },
     {
+      full_name='cinscopedecls', abbreviation='cinsd',
+      short_desc=N_("words that are recognized by 'cino-g'"),
+      type='string', list='onecomma', scope={'buffer'},
+      deny_duplicates=true,
+      alloced=true,
+      varname='p_cinsd',
+      defaults={if_true="public,protected,private"}
+    },
+    {
       full_name='clipboard', abbreviation='cb',
       short_desc=N_("use the clipboard as the unnamed register"),
       type='string', list='onecomma', scope={'global'},
@@ -1902,9 +1911,9 @@ return {
     },
     {
       full_name='remap',
-      short_desc=N_("mappings to work recursively"),
+      short_desc=N_("No description"),
       type='bool', scope={'global'},
-      varname='p_remap',
+      varname='p_force_on',
       defaults={if_true=true}
     },
     {
@@ -2520,9 +2529,9 @@ return {
     },
     {
       full_name='terse',
-      short_desc=N_("hides notification of search wrap"),
+      short_desc=N_("No description"),
       type='bool', scope={'global'},
-      varname='p_terse',
+      varname='p_force_off',
       defaults={if_true=false}
     },
     {
@@ -2821,6 +2830,16 @@ return {
       type='string', scope={'global'},
       varname='p_wak',
       defaults={if_true="menu"}
+    },
+    {
+      full_name='winbar', abbreviation='wbr',
+      short_desc=N_("custom format for the window bar"),
+      type='string', scope={'global', 'window'},
+      alloced=true,
+      modelineexpr=true,
+      redraw={'statuslines'},
+      varname='p_wbr',
+      defaults={if_true=""}
     },
     {
       full_name='winblend', abbreviation='winbl',

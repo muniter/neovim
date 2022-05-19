@@ -215,7 +215,7 @@ static const int included_patches[] = {
   1709,
   1708,
   1707,
-  // 1706,
+  1706,
   1705,
   1704,
   1703,
@@ -305,14 +305,14 @@ static const int included_patches[] = {
   1619,
   1618,
   1617,
-  // 1616,
+  1616,
   1615,
   1614,
   1613,
   1612,
   1611,
   1610,
-  // 1609,
+  1609,
   1608,
   1607,
   1606,
@@ -359,7 +359,7 @@ static const int included_patches[] = {
   1565,
   1564,
   1563,
-  // 1562,
+  1562,
   1561,
   1560,
   1559,
@@ -554,7 +554,7 @@ static const int included_patches[] = {
   1370,
   1369,
   1368,
-  // 1367,
+  1367,
   1366,
   1365,
   1364,
@@ -582,11 +582,11 @@ static const int included_patches[] = {
   1342,
   1341,
   1340,
-  // 1339,
+  1339,
   1338,
   1337,
   1336,
-  // 1335,
+  1335,
   1334,
   1333,
   1332,
@@ -614,7 +614,7 @@ static const int included_patches[] = {
   1310,
   1309,
   1308,
-  // 1307,
+  1307,
   1306,
   1305,
   1304,
@@ -802,7 +802,7 @@ static const int included_patches[] = {
   1122,
   1121,
   1120,
-  // 1119,
+  1119,
   1118,
   1117,
   1116,
@@ -1998,6 +1998,7 @@ Dictionary version_dict(void)
   PUT(d, "major", INTEGER_OBJ(NVIM_VERSION_MAJOR));
   PUT(d, "minor", INTEGER_OBJ(NVIM_VERSION_MINOR));
   PUT(d, "patch", INTEGER_OBJ(NVIM_VERSION_PATCH));
+  PUT(d, "prerelease", BOOLEAN_OBJ(NVIM_VERSION_PRERELEASE[0] != '\0'));
   PUT(d, "api_level", INTEGER_OBJ(NVIM_API_LEVEL));
   PUT(d, "api_compatible", INTEGER_OBJ(NVIM_API_LEVEL_COMPAT));
   PUT(d, "api_prerelease", BOOLEAN_OBJ(NVIM_API_PRERELEASE));
@@ -2053,7 +2054,7 @@ static void list_features(void)
   version_msg(_("\n\nFeatures: "));
   for (int i = 0; features[i] != NULL; i++) {
     version_msg(features[i]);
-    if (features[i+1] != NULL) {
+    if (features[i + 1] != NULL) {
       version_msg(" ");
     }
   }
@@ -2200,8 +2201,8 @@ void maybe_intro_message(void)
   if (buf_is_empty(curbuf)
       && (curbuf->b_fname == NULL)
       && (firstwin->w_next == NULL)
-      && (vim_strchr(p_shm, SHM_INTRO) == NULL)) {
-    intro_message(FALSE);
+      && (vim_strchr((char *)p_shm, SHM_INTRO) == NULL)) {
+    intro_message(false);
   }
 }
 
@@ -2311,7 +2312,7 @@ static void do_intro_line(long row, char_u *mesg, int attr)
          p[l] != NUL && (l == 0 || (p[l] != '<' && p[l - 1] != '>'));
          l++) {
       clen += ptr2cells(p + l);
-      l += utfc_ptr2len(p + l) - 1;
+      l += utfc_ptr2len((char *)p + l) - 1;
     }
     assert(row <= INT_MAX && col <= INT_MAX);
     grid_puts_len(&default_grid, p, l, (int)row, (int)col,
@@ -2329,4 +2330,3 @@ void ex_intro(exarg_T *eap)
   intro_message(TRUE);
   wait_return(TRUE);
 }
-

@@ -5,7 +5,6 @@
 // sign.c: functions for managing with signs
 //
 
-
 #include "nvim/ascii.h"
 #include "nvim/buffer.h"
 #include "nvim/charset.h"
@@ -20,6 +19,7 @@
 #include "nvim/sign.h"
 #include "nvim/syntax.h"
 #include "nvim/vim.h"
+#include "nvim/window.h"
 
 /// Struct to hold the sign properties.
 typedef struct sign sign_T;
@@ -884,11 +884,11 @@ static int sign_define_init_text(sign_T *sp, char_u *text)
   }
   // Count cells and check for non-printable chars
   cells = 0;
-  for (s = text; s < endp; s += utfc_ptr2len(s)) {
-    if (!vim_isprintc(utf_ptr2char(s))) {
+  for (s = text; s < endp; s += utfc_ptr2len((char *)s)) {
+    if (!vim_isprintc(utf_ptr2char((char *)s))) {
       break;
     }
-    cells += utf_ptr2cells(s);
+    cells += utf_ptr2cells((char *)s);
   }
   // Currently must be empty, one or two display cells
   if (s != endp || cells > 2) {
@@ -1172,7 +1172,7 @@ static void sign_define_cmd(char_u *sign_name, char_u *cmdline)
 
   // set values for a defined sign.
   for (;;) {
-    arg = skipwhite(p);
+    arg = (char_u *)skipwhite((char *)p);
     if (*arg == NUL) {
       break;
     }
@@ -1343,7 +1343,7 @@ static int parse_sign_cmd_args(int cmd, char_u *arg, char_u **sign_name, int *si
       *signid = -1;
       arg = arg1;
     } else {
-      arg = skipwhite(arg);
+      arg = (char_u *)skipwhite((char *)arg);
     }
   }
 
@@ -1391,7 +1391,7 @@ static int parse_sign_cmd_args(int cmd, char_u *arg, char_u **sign_name, int *si
       arg += 7;
       filename = arg;
       *buf = buflist_findnr(getdigits_int(&arg, true, 0));
-      if (*skipwhite(arg) != NUL) {
+      if (*skipwhite((char *)arg) != NUL) {
         emsg(_(e_trailing));
       }
       break;
@@ -1399,7 +1399,7 @@ static int parse_sign_cmd_args(int cmd, char_u *arg, char_u **sign_name, int *si
       emsg(_(e_invarg));
       return FAIL;
     }
-    arg = skipwhite(arg);
+    arg = (char_u *)skipwhite((char *)arg);
   }
 
   if (filename != NULL && *buf == NULL) {
@@ -1419,7 +1419,7 @@ static int parse_sign_cmd_args(int cmd, char_u *arg, char_u **sign_name, int *si
 /// ":sign" command
 void ex_sign(exarg_T *eap)
 {
-  char_u *arg = eap->arg;
+  char_u *arg = (char_u *)eap->arg;
   char_u *p;
   int idx;
   sign_T *sp;
@@ -1431,7 +1431,7 @@ void ex_sign(exarg_T *eap)
     semsg(_("E160: Unknown sign command: %s"), arg);
     return;
   }
-  arg = skipwhite(p);
+  arg = (char_u *)skipwhite((char *)p);
 
   if (idx <= SIGNCMD_LIST) {
     // Define, undefine or list signs.
@@ -1698,8 +1698,7 @@ void free_signs(void)
   }
 }
 
-static enum
-{
+static enum {
   EXP_SUBCMD,   // expand :sign sub-commands
   EXP_DEFINE,   // expand :sign define {name} args
   EXP_PLACE,    // expand :sign place {id} args
@@ -1743,33 +1742,33 @@ static char_u *get_nth_sign_group_name(int idx)
 
 /// Function given to ExpandGeneric() to obtain the sign command
 /// expansion.
-char_u *get_sign_name(expand_T *xp, int idx)
+char *get_sign_name(expand_T *xp, int idx)
 {
   switch (expand_what) {
   case EXP_SUBCMD:
-    return (char_u *)cmds[idx];
+    return cmds[idx];
   case EXP_DEFINE: {
     char *define_arg[] = { "culhl=", "icon=", "linehl=", "numhl=", "text=", "texthl=",
                            NULL };
-    return (char_u *)define_arg[idx];
+    return define_arg[idx];
   }
   case EXP_PLACE: {
     char *place_arg[] = { "line=", "name=", "group=", "priority=", "file=",
                           "buffer=", NULL };
-    return (char_u *)place_arg[idx];
+    return place_arg[idx];
   }
   case EXP_LIST: {
     char *list_arg[] = { "group=", "file=", "buffer=", NULL };
-    return (char_u *)list_arg[idx];
+    return list_arg[idx];
   }
   case EXP_UNPLACE: {
     char *unplace_arg[] = { "group=", "file=", "buffer=", NULL };
-    return (char_u *)unplace_arg[idx];
+    return unplace_arg[idx];
   }
   case EXP_SIGN_NAMES:
-    return get_nth_sign_name(idx);
+    return (char *)get_nth_sign_name(idx);
   case EXP_SIGN_GROUPS:
-    return get_nth_sign_group_name(idx);
+    return (char *)get_nth_sign_group_name(idx);
   default:
     return NULL;
   }
@@ -1786,7 +1785,7 @@ void set_context_in_sign_cmd(expand_T *xp, char_u *arg)
   // Default: expand subcommands.
   xp->xp_context = EXPAND_SIGN;
   expand_what = EXP_SUBCMD;
-  xp->xp_pattern = arg;
+  xp->xp_pattern = (char *)arg;
 
   end_subcmd = skiptowhite(arg);
   if (*end_subcmd == NUL) {
@@ -1800,7 +1799,7 @@ void set_context_in_sign_cmd(expand_T *xp, char_u *arg)
   // :sign {subcmd} {subcmd_args}
   //                |
   //                begin_subcmd_args
-  begin_subcmd_args = skipwhite(end_subcmd);
+  begin_subcmd_args = (char_u *)skipwhite((char *)end_subcmd);
 
   // Expand last argument of subcmd.
   //
@@ -1811,19 +1810,19 @@ void set_context_in_sign_cmd(expand_T *xp, char_u *arg)
   // Loop until reaching last argument.
   char_u *p = begin_subcmd_args;
   do {
-    p = skipwhite(p);
+    p = (char_u *)skipwhite((char *)p);
     last = p;
     p = skiptowhite(p);
   } while (*p != NUL);
 
-  p = vim_strchr(last, '=');
+  p = (char_u *)vim_strchr((char *)last, '=');
 
   // :sign define {name} {args}... {last}=
   //                               |     |
   //                            last     p
   if (p == NULL) {
     // Expand last argument name (before equal sign).
-    xp->xp_pattern = last;
+    xp->xp_pattern = (char *)last;
     switch (cmd_idx) {
     case SIGNCMD_DEFINE:
       expand_what = EXP_DEFINE;
@@ -1853,7 +1852,7 @@ void set_context_in_sign_cmd(expand_T *xp, char_u *arg)
     }
   } else {
     // Expand last argument value (after equal sign).
-    xp->xp_pattern = p + 1;
+    xp->xp_pattern = (char *)p + 1;
     switch (cmd_idx) {
     case SIGNCMD_DEFINE:
       if (STRNCMP(last, "texthl", 6) == 0

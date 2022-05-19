@@ -4,7 +4,7 @@
 #include <stdbool.h>
 
 #include "nvim/buffer_defs.h"
-#include "nvim/grid_defs.h"
+#include "nvim/grid.h"
 #include "nvim/pos.h"
 #include "nvim/types.h"
 
@@ -24,19 +24,8 @@ typedef enum {
   WC_TOP_LEFT = 0,
   WC_TOP_RIGHT,
   WC_BOTTOM_LEFT,
-  WC_BOTTOM_RIGHT
+  WC_BOTTOM_RIGHT,
 } WindowCorner;
-
-/// By default, all widows are draw on a single rectangular grid, represented by
-/// this ScreenGrid instance. In multigrid mode each window will have its own
-/// grid, then this is only used for global screen elements that hasn't been
-/// externalized.
-///
-/// Note: before the screen is initialized and when out of memory these can be
-/// NULL.
-EXTERN ScreenGrid default_grid INIT(= SCREEN_GRID_INIT);
-
-#define DEFAULT_GRID_HANDLE 1  // handle for the default_grid
 
 // Maximum columns for terminal highlight attributes
 #define TERM_ATTRS_MAX 1024
@@ -60,13 +49,21 @@ typedef struct {
 } StlClickRecord;
 
 /// Array defining what should be done when tabline is clicked
-extern StlClickDefinition *tab_page_click_defs;
+EXTERN StlClickDefinition *tab_page_click_defs INIT(= NULL);
 
 /// Size of the tab_page_click_defs array
-extern long tab_page_click_defs_size;
+EXTERN long tab_page_click_defs_size INIT(= 0);
 
-#define W_ENDCOL(wp)   (wp->w_wincol + wp->w_width)
-#define W_ENDROW(wp)   (wp->w_winrow + wp->w_height)
+#define W_ENDCOL(wp)   ((wp)->w_wincol + (wp)->w_width)
+#define W_ENDROW(wp)   ((wp)->w_winrow + (wp)->w_height)
+
+// While redrawing the screen this flag is set.  It means the screen size
+// ('lines' and 'rows') must not be changed.
+EXTERN bool updating_screen INIT(= 0);
+
+// While resizing the screen this flag is set.
+EXTERN bool resizing_screen INIT(= 0);
+
 
 #ifdef INCLUDE_GENERATED_DECLARATIONS
 # include "screen.h.generated.h"

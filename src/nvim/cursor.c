@@ -95,8 +95,8 @@ static int coladvance2(pos_T *pos, bool addspaces, bool finetune, colnr_T wcol_a
   colnr_T col = 0;
   int head = 0;
 
-  int one_more = (State & INSERT)
-                 || (State & TERM_FOCUS)
+  int one_more = (State & MODE_INSERT)
+                 || (State & MODE_TERMINAL)
                  || restart_edit != NUL
                  || (VIsual_active && *p_sel != 'o')
                  || ((get_ve_flags() & VE_ONEMORE) && wcol < MAXCOL);
@@ -128,7 +128,7 @@ static int coladvance2(pos_T *pos, bool addspaces, bool finetune, colnr_T wcol_a
       }
 
       if (wcol / width > (colnr_T)csize / width
-          && ((State & INSERT) == 0 || (int)wcol > csize + 1)) {
+          && ((State & MODE_INSERT) == 0 || (int)wcol > csize + 1)) {
         // In case of line wrapping don't move the cursor beyond the
         // right screen edge.  In Insert mode allow going just beyond
         // the last character (like what happens when typing and
@@ -171,7 +171,7 @@ static int coladvance2(pos_T *pos, bool addspaces, bool finetune, colnr_T wcol_a
         memcpy(newline, line, (size_t)idx);
         memset(newline + idx, ' ', (size_t)correct);
 
-        ml_replace(pos->lnum, newline, false);
+        ml_replace(pos->lnum, (char *)newline, false);
         inserted_bytes(pos->lnum, (colnr_T)idx, 0, correct);
         idx += correct;
         col = wcol;
@@ -197,7 +197,7 @@ static int coladvance2(pos_T *pos, bool addspaces, bool finetune, colnr_T wcol_a
         STRICT_SUB(n, 1, &n, size_t);
         memcpy(newline + idx + csize, line + idx + 1, n);
 
-        ml_replace(pos->lnum, newline, false);
+        ml_replace(pos->lnum, (char *)newline, false);
         inserted_bytes(pos->lnum, idx, 1, csize);
         idx += (csize - 1 + correct);
         col += correct;
@@ -350,7 +350,7 @@ void check_cursor_col_win(win_T *win)
     // - in Insert mode or restarting Insert mode
     // - in Visual mode and 'selection' isn't "old"
     // - 'virtualedit' is set */
-    if ((State & INSERT) || restart_edit
+    if ((State & MODE_INSERT) || restart_edit
         || (VIsual_active && *p_sel != 'o')
         || (cur_ve_flags & VE_ONEMORE)
         || virtual_active()) {
@@ -397,6 +397,24 @@ void check_cursor(void)
 {
   check_cursor_lnum();
   check_cursor_col();
+}
+
+/// Check if VIsual position is valid, correct it if not.
+/// Can be called when in Visual mode and a change has been made.
+void check_visual_pos(void)
+{
+  if (VIsual.lnum > curbuf->b_ml.ml_line_count) {
+    VIsual.lnum = curbuf->b_ml.ml_line_count;
+    VIsual.col = 0;
+    VIsual.coladd = 0;
+  } else {
+    int len = (int)STRLEN(ml_get(VIsual.lnum));
+
+    if (VIsual.col > len) {
+      VIsual.col = len;
+      VIsual.coladd = 0;
+    }
+  }
 }
 
 /// Make sure curwin->w_cursor is not on the NUL at the end of the line.
@@ -459,7 +477,7 @@ bool leftcol_changed(void)
 
 int gchar_cursor(void)
 {
-  return utf_ptr2char(get_cursor_pos_ptr());
+  return utf_ptr2char((char *)get_cursor_pos_ptr());
 }
 
 /// Write a character at the current cursor position.

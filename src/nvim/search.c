@@ -189,7 +189,7 @@ int search_regcomp(char_u *pat, int pat_save, int pat_use, int options, regmmatc
 
   regmatch->rmm_ic = ignorecase(pat);
   regmatch->rmm_maxcol = 0;
-  regmatch->regprog = vim_regcomp(pat, magic ? RE_MAGIC : 0);
+  regmatch->regprog = vim_regcomp((char *)pat, magic ? RE_MAGIC : 0);
   if (regmatch->regprog == NULL) {
     return FAIL;
   }
@@ -219,7 +219,7 @@ char_u *reverse_text(char_u *s) FUNC_ATTR_NONNULL_RET
   char_u *rev = xmalloc(len + 1);
   size_t rev_i = len;
   for (size_t s_i = 0; s_i < len; s_i++) {
-    const int mb_len = utfc_ptr2len(s + s_i);
+    const int mb_len = utfc_ptr2len((char *)s + s_i);
     rev_i -= mb_len;
     memmove(rev + rev_i, s + s_i, mb_len);
     s_i += mb_len - 1;
@@ -388,10 +388,10 @@ bool pat_has_uppercase(char_u *pat)
   char_u *p = pat;
 
   while (*p != NUL) {
-    const int l = utfc_ptr2len(p);
+    const int l = utfc_ptr2len((char *)p);
 
     if (l > 1) {
-      if (mb_isupper(utf_ptr2char(p))) {
+      if (mb_isupper(utf_ptr2char((char *)p))) {
         return true;
       }
       p += l;
@@ -602,7 +602,7 @@ int searchit(win_T *win, buf_T *buf, pos_T *pos, pos_T *end_pos, Direction dir, 
       if ((int)STRLEN(ptr) <= pos->col) {
         start_char_len = 1;
       } else {
-        start_char_len = utfc_ptr2len(ptr + pos->col);
+        start_char_len = utfc_ptr2len((char *)ptr + pos->col);
       }
     } else {
       start_char_len = 1;
@@ -714,7 +714,7 @@ int searchit(win_T *win, buf_T *buf, pos_T *pos, pos_T *end_pos, Direction dir, 
               }
 
               if (matchcol == matchpos.col && ptr[matchcol] != NUL) {
-                matchcol += utfc_ptr2len(ptr + matchcol);
+                matchcol += utfc_ptr2len((char *)ptr + matchcol);
               }
 
               if (matchcol == 0 && (options & SEARCH_START)) {
@@ -799,7 +799,7 @@ int searchit(win_T *win, buf_T *buf, pos_T *pos, pos_T *end_pos, Direction dir, 
                 // for empty match: advance one char
                 if (matchcol == matchpos.col
                     && ptr[matchcol] != NUL) {
-                  matchcol += utfc_ptr2len(ptr + matchcol);
+                  matchcol += utfc_ptr2len((char *)ptr + matchcol);
                 }
               } else {
                 // Stop when the match is in a next line.
@@ -808,7 +808,7 @@ int searchit(win_T *win, buf_T *buf, pos_T *pos, pos_T *end_pos, Direction dir, 
                 }
                 matchcol = matchpos.col;
                 if (ptr[matchcol] != NUL) {
-                  matchcol += utfc_ptr2len(ptr + matchcol);
+                  matchcol += utfc_ptr2len((char *)ptr + matchcol);
                 }
               }
               if (ptr[matchcol] == NUL
@@ -1055,7 +1055,7 @@ int do_search(oparg_T *oap, int dirc, int search_delim, char_u *pat, long count,
    * A line offset is not remembered, this is vi compatible.
    */
   if (spats[0].off.line && vim_strchr(p_cpo, CPO_LINEOFF) != NULL) {
-    spats[0].off.line = FALSE;
+    spats[0].off.line = false;
     spats[0].off.off = 0;
   }
 
@@ -1248,7 +1248,7 @@ int do_search(oparg_T *oap, int dirc, int search_delim, char_u *pat, long count,
       // empty for the search_stat feature.
       if (!cmd_silent) {
         msgbuf[0] = dirc;
-        if (utf_iscomposing(utf_ptr2char(p))) {
+        if (utf_iscomposing(utf_ptr2char((char *)p))) {
           // Use a space to draw the composing char on.
           msgbuf[1] = ' ';
           memmove(msgbuf + 2, p, STRLEN(p));
@@ -1501,7 +1501,7 @@ int search_for_exact_line(buf_T *buf, pos_T *pos, Direction dir, char_u *pat)
       start = pos->lnum;
     }
     ptr = ml_get_buf(buf, pos->lnum, false);
-    p = skipwhite(ptr);
+    p = (char_u *)skipwhite((char *)ptr);
     pos->col = (colnr_T)(p - ptr);
 
     // when adding lines the matching line may be empty but it is not
@@ -1549,13 +1549,13 @@ int searchc(cmdarg_T *cap, int t_cmd)
       *lastc = c;
       set_csearch_direction(dir);
       set_csearch_until(t_cmd);
-      lastc_bytelen = utf_char2bytes(c, lastc_bytes);
+      lastc_bytelen = utf_char2bytes(c, (char *)lastc_bytes);
       if (cap->ncharC1 != 0) {
         lastc_bytelen += utf_char2bytes(cap->ncharC1,
-                                        lastc_bytes + lastc_bytelen);
+                                        (char *)lastc_bytes + lastc_bytelen);
         if (cap->ncharC2 != 0) {
           lastc_bytelen += utf_char2bytes(cap->ncharC2,
-                                          lastc_bytes + lastc_bytelen);
+                                          (char *)lastc_bytes + lastc_bytelen);
         }
       }
     }
@@ -1593,7 +1593,7 @@ int searchc(cmdarg_T *cap, int t_cmd)
   while (count--) {
     for (;;) {
       if (dir > 0) {
-        col += utfc_ptr2len(p + col);
+        col += utfc_ptr2len((char *)p + col);
         if (col >= len) {
           return FAIL;
         }
@@ -1709,31 +1709,31 @@ static void find_mps_values(int *initc, int *findc, bool *backwards, bool switch
   char_u *ptr = curbuf->b_p_mps;
 
   while (*ptr != NUL) {
-    if (utf_ptr2char(ptr) == *initc) {
+    if (utf_ptr2char((char *)ptr) == *initc) {
       if (switchit) {
         *findc = *initc;
-        *initc = utf_ptr2char(ptr + utfc_ptr2len(ptr) + 1);
+        *initc = utf_ptr2char((char *)ptr + utfc_ptr2len((char *)ptr) + 1);
         *backwards = true;
       } else {
-        *findc = utf_ptr2char(ptr + utfc_ptr2len(ptr) + 1);
+        *findc = utf_ptr2char((char *)ptr + utfc_ptr2len((char *)ptr) + 1);
         *backwards = false;
       }
       return;
     }
     char_u *prev = ptr;
-    ptr += utfc_ptr2len(ptr) + 1;
-    if (utf_ptr2char(ptr) == *initc) {
+    ptr += utfc_ptr2len((char *)ptr) + 1;
+    if (utf_ptr2char((char *)ptr) == *initc) {
       if (switchit) {
         *findc = *initc;
-        *initc = utf_ptr2char(prev);
+        *initc = utf_ptr2char((char *)prev);
         *backwards = false;
       } else {
-        *findc = utf_ptr2char(prev);
+        *findc = utf_ptr2char((char *)prev);
         *backwards = true;
       }
       return;
     }
-    ptr += utfc_ptr2len(ptr);
+    ptr += utfc_ptr2len((char *)ptr);
     if (*ptr == ',') {
       ptr++;
     }
@@ -1835,9 +1835,9 @@ pos_T *findmatchlimit(oparg_T *oap, int initc, int flags, int64_t maxtravel)
        */
       if (!cpo_match) {
         // Are we before or at #if, #else etc.?
-        ptr = skipwhite(linep);
+        ptr = (char_u *)skipwhite((char *)linep);
         if (*ptr == '#' && pos.col <= (colnr_T)(ptr - linep)) {
-          ptr = skipwhite(ptr + 1);
+          ptr = (char_u *)skipwhite((char *)ptr + 1);
           if (STRNCMP(ptr, "if", 2) == 0
               || STRNCMP(ptr, "endif", 5) == 0
               || STRNCMP(ptr, "el", 2) == 0) {
@@ -1880,7 +1880,7 @@ pos_T *findmatchlimit(oparg_T *oap, int initc, int flags, int64_t maxtravel)
           --pos.col;
         }
         for (;;) {
-          initc = utf_ptr2char(linep + pos.col);
+          initc = utf_ptr2char((char *)linep + pos.col);
           if (initc == NUL) {
             break;
           }
@@ -1889,11 +1889,11 @@ pos_T *findmatchlimit(oparg_T *oap, int initc, int flags, int64_t maxtravel)
           if (findc) {
             break;
           }
-          pos.col += utfc_ptr2len(linep + pos.col);
+          pos.col += utfc_ptr2len((char *)linep + pos.col);
         }
         if (!findc) {
           // no brace in the line, maybe use "  #if" then
-          if (!cpo_match && *skipwhite(linep) == '#') {
+          if (!cpo_match && *skipwhite((char *)linep) == '#') {
             hash_dir = 1;
           } else {
             return NULL;
@@ -1918,7 +1918,7 @@ pos_T *findmatchlimit(oparg_T *oap, int initc, int flags, int64_t maxtravel)
         oap->motion_type = kMTLineWise;  // Linewise for this case only
       }
       if (initc != '#') {
-        ptr = skipwhite(skipwhite(linep) + 1);
+        ptr = (char_u *)skipwhite(skipwhite((char *)linep) + 1);
         if (STRNCMP(ptr, "if", 2) == 0 || STRNCMP(ptr, "el", 2) == 0) {
           hash_dir = 1;
         } else if (STRNCMP(ptr, "endif", 5) == 0) {
@@ -1939,12 +1939,12 @@ pos_T *findmatchlimit(oparg_T *oap, int initc, int flags, int64_t maxtravel)
         pos.lnum += hash_dir;
         linep = ml_get(pos.lnum);
         line_breakcheck();              // check for CTRL-C typed
-        ptr = skipwhite(linep);
+        ptr = (char_u *)skipwhite((char *)linep);
         if (*ptr != '#') {
           continue;
         }
         pos.col = (colnr_T)(ptr - linep);
-        ptr = skipwhite(ptr + 1);
+        ptr = (char_u *)skipwhite((char *)ptr + 1);
         if (hash_dir > 0) {
           if (STRNCMP(ptr, "if", 2) == 0) {
             count++;
@@ -1979,7 +1979,7 @@ pos_T *findmatchlimit(oparg_T *oap, int initc, int flags, int64_t maxtravel)
 
   // This is just guessing: when 'rightleft' is set, search for a matching
   // paren/brace in the other direction.
-  if (curwin->w_p_rl && vim_strchr((char_u *)"()[]{}<>", initc) != NULL) {
+  if (curwin->w_p_rl && vim_strchr("()[]{}<>", initc) != NULL) {
     backwards = !backwards;
   }
 
@@ -2061,7 +2061,7 @@ pos_T *findmatchlimit(oparg_T *oap, int initc, int flags, int64_t maxtravel)
           comment_col = check_linecomment(linep);
         }
       } else {
-        pos.col += utfc_ptr2len(linep + pos.col);
+        pos.col += utfc_ptr2len((char *)linep + pos.col);
       }
     }
 
@@ -2092,7 +2092,7 @@ pos_T *findmatchlimit(oparg_T *oap, int initc, int flags, int64_t maxtravel)
         } else if (raw_string) {
           if (linep[pos.col - 1] == 'R'
               && linep[pos.col] == '"'
-              && vim_strchr(linep + pos.col + 1, '(') != NULL) {
+              && vim_strchr((char *)linep + pos.col + 1, '(') != NULL) {
             // Possible start of raw string. Now that we have the
             // delimiter we can check if it ends before where we
             // started searching, or before the previously found
@@ -2206,7 +2206,7 @@ pos_T *findmatchlimit(oparg_T *oap, int initc, int flags, int64_t maxtravel)
      *   inquote if the number of quotes in a line is even, unless this
      *   line or the previous one ends in a '\'.  Complicated, isn't it?
      */
-    const int c = utf_ptr2char(linep + pos.col);
+    const int c = utf_ptr2char((char *)linep + pos.col);
     switch (c) {
     case NUL:
       // at end of line without trailing backslash, reset inquote
@@ -2273,7 +2273,7 @@ pos_T *findmatchlimit(oparg_T *oap, int initc, int flags, int64_t maxtravel)
        * (actually, we skip #\( et al)
        */
       if (curbuf->b_p_lisp
-          && vim_strchr((char_u *)"(){}[]", c) != NULL
+          && vim_strchr("(){}[]", c) != NULL
           && pos.col > 1
           && check_prevcol(linep, pos.col, '\\', NULL)
           && check_prevcol(linep, pos.col - 1, '#', NULL)) {
@@ -2321,10 +2321,10 @@ int check_linecomment(const char_u *line)
   const char_u *p = line;  // scan from start
   // skip Lispish one-line comments
   if (curbuf->b_p_lisp) {
-    if (vim_strchr(p, ';') != NULL) {   // there may be comments
+    if (vim_strchr((char *)p, ';') != NULL) {   // there may be comments
       bool in_str = false;       // inside of string
 
-      while ((p = vim_strpbrk(p, (char_u *)"\";")) != NULL) {
+      while ((p = (char_u *)strpbrk((char *)p, "\";")) != NULL) {
         if (*p == '"') {
           if (in_str) {
             if (*(p - 1) != '\\') {             // skip escaped quote
@@ -2346,7 +2346,7 @@ int check_linecomment(const char_u *line)
       p = NULL;
     }
   } else {
-    while ((p = vim_strchr(p, '/')) != NULL) {
+    while ((p = (char_u *)vim_strchr((char *)p, '/')) != NULL) {
       // Accept a double /, unless it's preceded with * and followed by *,
       // because * / / * is an end and start of a C comment.
       // Only accept the position if it is not inside a string.
@@ -2388,14 +2388,14 @@ void showmatch(int c)
    */
   // 'matchpairs' is "x:y,x:y"
   for (p = curbuf->b_p_mps; *p != NUL; p++) {
-    if (utf_ptr2char(p) == c && (curwin->w_p_rl ^ p_ri)) {
+    if (utf_ptr2char((char *)p) == c && (curwin->w_p_rl ^ p_ri)) {
       break;
     }
-    p += utfc_ptr2len(p) + 1;
-    if (utf_ptr2char(p) == c && !(curwin->w_p_rl ^ p_ri)) {
+    p += utfc_ptr2len((char *)p) + 1;
+    if (utf_ptr2char((char *)p) == c && !(curwin->w_p_rl ^ p_ri)) {
       break;
     }
-    p += utfc_ptr2len(p);
+    p += utfc_ptr2len((char *)p);
     if (*p == NUL) {
       return;
     }
@@ -2428,7 +2428,7 @@ void showmatch(int c)
 
       save_dollar_vcol = dollar_vcol;
       save_state = State;
-      State = SHOWMATCH;
+      State = MODE_SHOWMATCH;
       ui_cursor_shape();                // may show different cursor shape
       curwin->w_cursor = mpos;          // move to matching char
       *so = 0;                          // don't use 'scrolloff' here
@@ -2507,7 +2507,7 @@ int findsent(Direction dir, long count)
     // go back to the previous non-white non-punctuation character
     bool found_dot = false;
     while (c = gchar_pos(&pos), ascii_iswhite(c)
-           || vim_strchr((char_u *)".!?)]\"'", c) != NULL) {
+           || vim_strchr(".!?)]\"'", c) != NULL) {
       tpos = pos;
       if (decl(&tpos) == -1 || (LINEEMPTY(tpos.lnum) && dir == FORWARD)) {
         break;
@@ -2515,11 +2515,11 @@ int findsent(Direction dir, long count)
       if (found_dot) {
         break;
       }
-      if (vim_strchr((char_u *)".!?", c) != NULL) {
+      if (vim_strchr(".!?", c) != NULL) {
         found_dot = true;
       }
-      if (vim_strchr((char_u *)")]\"'", c) != NULL
-          && vim_strchr((char_u *)".!?)]\"'", gchar_pos(&tpos)) == NULL) {
+      if (vim_strchr(")]\"'", c) != NULL
+          && vim_strchr(".!?)]\"'", gchar_pos(&tpos)) == NULL) {
         break;
       }
       decl(&pos);
@@ -2543,9 +2543,8 @@ int findsent(Direction dir, long count)
           if ((c = inc(&tpos)) == -1) {
             break;
           }
-        }
-        while (vim_strchr((char_u *)")]\"'", c = gchar_pos(&tpos))
-               != NULL);
+        } while (vim_strchr(")]\"'", c = gchar_pos(&tpos))
+                 != NULL);
         if (c == -1 || (!cpo_J && (c == ' ' || c == '\t')) || c == NUL
             || (cpo_J && (c == ' ' && inc(&tpos) >= 0
                           && gchar_pos(&tpos) == ' '))) {
@@ -3400,7 +3399,7 @@ int current_block(oparg_T *oap, long count, int include, int what, int other)
   pos_T start_pos;
   pos_T *end_pos;
   pos_T old_start, old_end;
-  char_u *save_cpo;
+  char *save_cpo;
   bool sol = false;                      // '{' at start of line
 
   old_pos = curwin->w_cursor;
@@ -3435,7 +3434,7 @@ int current_block(oparg_T *oap, long count, int include, int what, int other)
   // Ignore quotes here.  Keep the "M" flag in 'cpo', as that is what the
   // user wants.
   save_cpo = p_cpo;
-  p_cpo = (char_u *)(vim_strchr(p_cpo, CPO_MATCHBSL) != NULL ? "%M" : "%");
+  p_cpo = vim_strchr(p_cpo, CPO_MATCHBSL) != NULL ? "%M" : "%";
   if ((pos = findmatch(NULL, what)) != NULL) {
     while (count-- > 0) {
       if ((pos = findmatch(NULL, what)) == NULL) {
@@ -3673,8 +3672,7 @@ again:
   p = get_cursor_pos_ptr();
   for (cp = p;
        *cp != NUL && *cp != '>' && !ascii_iswhite(*cp);
-       MB_PTR_ADV(cp)) {
-  }
+       MB_PTR_ADV(cp)) {}
   len = (int)(cp - p);
   if (len == 0) {
     curwin->w_cursor = old_pos;
@@ -3969,12 +3967,15 @@ static int find_next_quote(char_u *line, int col, int quotechar, char_u *escape)
     c = line[col];
     if (c == NUL) {
       return -1;
-    } else if (escape != NULL && vim_strchr(escape, c)) {
+    } else if (escape != NULL && vim_strchr((char *)escape, c)) {
       col++;
+      if (line[col] == NUL) {
+        return -1;
+      }
     } else if (c == quotechar) {
       break;
     }
-    col += utfc_ptr2len(line + col);
+    col += utfc_ptr2len((char *)line + col);
   }
   return col;
 }
@@ -3995,7 +3996,7 @@ static int find_prev_quote(char_u *line, int col_start, int quotechar, char_u *e
     col_start -= utf_head_off(line, line + col_start);
     n = 0;
     if (escape != NULL) {
-      while (col_start - n > 0 && vim_strchr(escape,
+      while (col_start - n > 0 && vim_strchr((char *)escape,
                                              line[col_start - n - 1]) != NULL) {
         ++n;
       }
@@ -4478,7 +4479,7 @@ int linewhite(linenr_T lnum)
 {
   char_u *p;
 
-  p = skipwhite(ml_get(lnum));
+  p = (char_u *)skipwhite((char *)ml_get(lnum));
   return *p == NUL;
 }
 
@@ -4830,15 +4831,15 @@ typedef struct {
 /// bonus if the first letter is matched
 #define FIRST_LETTER_BONUS 15
 /// penalty applied for every letter in str before the first match
-#define LEADING_LETTER_PENALTY -5
+#define LEADING_LETTER_PENALTY (-5)
 /// maximum penalty for leading letters
-#define MAX_LEADING_LETTER_PENALTY -15
+#define MAX_LEADING_LETTER_PENALTY (-15)
 /// penalty for every letter that doesn't match
-#define UNMATCHED_LETTER_PENALTY -1
+#define UNMATCHED_LETTER_PENALTY (-1)
 /// penalty for gap in matching positions (-2 * k)
-#define GAP_PENALTY -2
+#define GAP_PENALTY (-2)
 /// Score for a string that doesn't fuzzy match the pattern
-#define SCORE_NONE -9999
+#define SCORE_NONE (-9999)
 
 #define FUZZY_MATCH_RECURSION_LIMIT 10
 
@@ -4885,10 +4886,10 @@ static int fuzzy_match_compute_score(const char_u *const str, const int strSz,
       int neighbor;
 
       for (uint32_t sidx = 0; sidx < currIdx; sidx++) {
-        neighbor = utf_ptr2char(p);
+        neighbor = utf_ptr2char((char *)p);
         MB_PTR_ADV(p);
       }
-      const int curr = utf_ptr2char(p);
+      const int curr = utf_ptr2char((char *)p);
 
       if (mb_islower(neighbor) && mb_isupper(curr)) {
         score += CAMEL_BONUS;
@@ -4936,8 +4937,8 @@ static int fuzzy_match_recursive(const char_u *fuzpat, const char_u *str, uint32
   // Loop through fuzpat and str looking for a match
   bool first_match = true;
   while (*fuzpat != NUL && *str != NUL) {
-    const int c1 = utf_ptr2char(fuzpat);
-    const int c2 = utf_ptr2char(str);
+    const int c1 = utf_ptr2char((char *)fuzpat);
+    const int c2 = utf_ptr2char((char *)str);
 
     // Found match
     if (mb_tolower(c1) == mb_tolower(c2)) {
@@ -4955,7 +4956,7 @@ static int fuzzy_match_recursive(const char_u *fuzpat, const char_u *str, uint32
       // Recursive call that "skips" this match
       uint32_t recursiveMatches[MAX_FUZZY_MATCHES];
       int recursiveScore = 0;
-      const char_u *const next_char = str + utfc_ptr2len(str);
+      const char_u *const next_char = str + utfc_ptr2len((char *)str);
       if (fuzzy_match_recursive(fuzpat, next_char, strIdx + 1, &recursiveScore, strBegin, strLen,
                                 matches, recursiveMatches,
                                 sizeof(recursiveMatches) / sizeof(recursiveMatches[0]), nextMatch,
@@ -5031,12 +5032,12 @@ bool fuzzy_match(char_u *const str, const char_u *const pat_arg, const bool matc
       complete = true;
     } else {
       // Extract one word from the pattern (separated by space)
-      p = skipwhite(p);
+      p = (char_u *)skipwhite((char *)p);
       if (*p == NUL) {
         break;
       }
       pat = p;
-      while (*p != NUL && !ascii_iswhite(utf_ptr2char(p))) {
+      while (*p != NUL && !ascii_iswhite(utf_ptr2char((char *)p))) {
         MB_PTR_ADV(p);
       }
       if (*p == NUL) {  // processed all the words
@@ -5093,32 +5094,36 @@ static int fuzzy_match_item_compare(const void *const s1, const void *const s2)
 /// for each item or use 'item_cb' Funcref function to get the string.
 /// If 'retmatchpos' is true, then return a list of positions where 'str'
 /// matches for each item.
-static void fuzzy_match_in_list(list_T *const items, char_u *const str, const bool matchseq,
+static void fuzzy_match_in_list(list_T *const l, char_u *const str, const bool matchseq,
                                 const char_u *const key, Callback *const item_cb,
-                                const bool retmatchpos, list_T *const fmatchlist)
+                                const bool retmatchpos, list_T *const fmatchlist,
+                                const long max_matches)
   FUNC_ATTR_NONNULL_ARG(2, 5, 7)
 {
-  const long len = tv_list_len(items);
+  long len = tv_list_len(l);
   if (len == 0) {
     return;
   }
+  if (max_matches > 0 && len > max_matches) {
+    len = max_matches;
+  }
 
-  fuzzyItem_T *const ptrs = xcalloc(len, sizeof(fuzzyItem_T));
-  long i = 0;
-  bool found_match = false;
+  fuzzyItem_T *const items = xcalloc(len, sizeof(fuzzyItem_T));
+  long match_count = 0;
   uint32_t matches[MAX_FUZZY_MATCHES];
 
   // For all the string items in items, get the fuzzy matching score
-  TV_LIST_ITER(items, li, {
-    ptrs[i].idx = i;
-    ptrs[i].item = li;
-    ptrs[i].score = SCORE_NONE;
+  TV_LIST_ITER(l, li, {
+    if (max_matches > 0 && match_count >= max_matches) {
+      break;
+    }
+
     char_u *itemstr = NULL;
     typval_T rettv;
     rettv.v_type = VAR_UNKNOWN;
     const typval_T *const tv = TV_LIST_ITEM_TV(li);
     if (tv->v_type == VAR_STRING) {  // list of strings
-      itemstr = tv->vval.v_string;
+      itemstr = (char_u *)tv->vval.v_string;
     } else if (tv->v_type == VAR_DICT && (key != NULL || item_cb->type != kCallbackNone)) {
       // For a dict, either use the specified key to lookup the string or
       // use the specified callback function to get the string.
@@ -5134,7 +5139,7 @@ static void fuzzy_match_in_list(list_T *const items, char_u *const str, const bo
         argv[1].v_type = VAR_UNKNOWN;
         if (callback_call(item_cb, 1, argv, &rettv)) {
           if (rettv.v_type == VAR_STRING) {
-            itemstr = rettv.vval.v_string;
+            itemstr = (char_u *)rettv.vval.v_string;
           }
         }
         tv_dict_unref(tv->vval.v_dict);
@@ -5143,31 +5148,33 @@ static void fuzzy_match_in_list(list_T *const items, char_u *const str, const bo
 
     int score;
     if (itemstr != NULL && fuzzy_match(itemstr, str, matchseq, &score, matches,
-                                       sizeof(matches) / sizeof(matches[0]))) {
+                                       MAX_FUZZY_MATCHES)) {
+      items[match_count].idx = match_count;
+      items[match_count].item = li;
+      items[match_count].score = score;
+
       // Copy the list of matching positions in itemstr to a list, if
       // 'retmatchpos' is set.
       if (retmatchpos) {
-        ptrs[i].lmatchpos = tv_list_alloc(kListLenMayKnow);
+        items[match_count].lmatchpos = tv_list_alloc(kListLenMayKnow);
         int j = 0;
         const char_u *p = str;
         while (*p != NUL) {
-          if (!ascii_iswhite(utf_ptr2char(p))) {
-            tv_list_append_number(ptrs[i].lmatchpos, matches[j]);
+          if (!ascii_iswhite(utf_ptr2char((char *)p)) || matchseq) {
+            tv_list_append_number(items[match_count].lmatchpos, matches[j]);
             j++;
           }
           MB_PTR_ADV(p);
         }
       }
-      ptrs[i].score = score;
-      found_match = true;
+      match_count++;
     }
-    i++;
     tv_clear(&rettv);
   });
 
-  if (found_match) {
+  if (match_count > 0) {
     // Sort the list by the descending order of the match score
-    qsort(ptrs, len, sizeof(fuzzyItem_T), fuzzy_match_item_compare);
+    qsort(items, match_count, sizeof(fuzzyItem_T), fuzzy_match_item_compare);
 
     // For matchfuzzy(), return a list of matched strings.
     //          ['str1', 'str2', 'str3']
@@ -5176,48 +5183,49 @@ static void fuzzy_match_in_list(list_T *const items, char_u *const str, const bo
     // is a list of lists where each list item is a list of matched
     // character positions. The third item is a list of matching scores.
     //      [['str1', 'str2', 'str3'], [[1, 3], [1, 3], [1, 3]]]
-    list_T *l;
+    list_T *retlist;
     if (retmatchpos) {
       const listitem_T *const li = tv_list_find(fmatchlist, 0);
       assert(li != NULL && TV_LIST_ITEM_TV(li)->vval.v_list != NULL);
-      l = TV_LIST_ITEM_TV(li)->vval.v_list;
+      retlist = TV_LIST_ITEM_TV(li)->vval.v_list;
     } else {
-      l = fmatchlist;
+      retlist = fmatchlist;
     }
 
     // Copy the matching strings with a valid score to the return list
-    for (i = 0; i < len; i++) {
-      if (ptrs[i].score == SCORE_NONE) {
+    for (long i = 0; i < match_count; i++) {
+      if (items[i].score == SCORE_NONE) {
         break;
       }
-      tv_list_append_tv(l, TV_LIST_ITEM_TV(ptrs[i].item));
+      tv_list_append_tv(retlist, TV_LIST_ITEM_TV(items[i].item));
     }
 
     // next copy the list of matching positions
     if (retmatchpos) {
       const listitem_T *li = tv_list_find(fmatchlist, -2);
       assert(li != NULL && TV_LIST_ITEM_TV(li)->vval.v_list != NULL);
-      l = TV_LIST_ITEM_TV(li)->vval.v_list;
-      for (i = 0; i < len; i++) {
-        if (ptrs[i].score == SCORE_NONE) {
+      retlist = TV_LIST_ITEM_TV(li)->vval.v_list;
+
+      for (long i = 0; i < match_count; i++) {
+        if (items[i].score == SCORE_NONE) {
           break;
         }
-        tv_list_append_list(l, ptrs[i].lmatchpos);
+        tv_list_append_list(retlist, items[i].lmatchpos);
       }
 
       // copy the matching scores
       li = tv_list_find(fmatchlist, -1);
       assert(li != NULL && TV_LIST_ITEM_TV(li)->vval.v_list != NULL);
-      l = TV_LIST_ITEM_TV(li)->vval.v_list;
-      for (i = 0; i < len; i++) {
-        if (ptrs[i].score == SCORE_NONE) {
+      retlist = TV_LIST_ITEM_TV(li)->vval.v_list;
+      for (long i = 0; i < match_count; i++) {
+        if (items[i].score == SCORE_NONE) {
           break;
         }
-        tv_list_append_number(l, ptrs[i].score);
+        tv_list_append_number(retlist, items[i].score);
       }
     }
   }
-  xfree(ptrs);
+  xfree(items);
 }
 
 /// Do fuzzy matching. Returns the list of matched strings in 'rettv'.
@@ -5239,6 +5247,7 @@ static void do_fuzzymatch(const typval_T *const argvars, typval_T *const rettv,
   Callback cb = CALLBACK_NONE;
   const char_u *key = NULL;
   bool matchseq = false;
+  long max_matches = 0;
   if (argvars[2].v_type != VAR_UNKNOWN) {
     if (argvars[2].v_type != VAR_DICT || argvars[2].vval.v_dict == NULL) {
       emsg(_(e_dictreq));
@@ -5248,8 +5257,8 @@ static void do_fuzzymatch(const typval_T *const argvars, typval_T *const rettv,
     // To search a dict, either a callback function or a key can be
     // specified.
     dict_T *const d = argvars[2].vval.v_dict;
-    const dictitem_T *const di = tv_dict_find(d, "key", -1);
-    if (di != NULL) {
+    const dictitem_T *di;
+    if ((di = tv_dict_find(d, "key", -1)) != NULL) {
       if (di->di_tv.v_type != VAR_STRING || di->di_tv.vval.v_string == NULL
           || *di->di_tv.vval.v_string == NUL) {
         semsg(_(e_invarg2), tv_get_string(&di->di_tv));
@@ -5259,7 +5268,14 @@ static void do_fuzzymatch(const typval_T *const argvars, typval_T *const rettv,
     } else if (!tv_dict_get_callback(d, "text_cb", -1, &cb)) {
       semsg(_(e_invargval), "text_cb");
       return;
+    } else if ((di = tv_dict_find(d, "limit", -1)) != NULL) {
+      if (di->di_tv.v_type != VAR_NUMBER) {
+        semsg(_(e_invarg2), tv_get_string(&di->di_tv));
+        return;
+      }
+      max_matches = (long)tv_get_number_chk(&di->di_tv, NULL);
     }
+
     if (tv_dict_find(d, "matchseq", -1) != NULL) {
       matchseq = true;
     }
@@ -5278,7 +5294,7 @@ static void do_fuzzymatch(const typval_T *const argvars, typval_T *const rettv,
   }
 
   fuzzy_match_in_list(argvars[0].vval.v_list, (char_u *)tv_get_string(&argvars[1]), matchseq, key,
-                      &cb, retmatchpos, rettv->vval.v_list);
+                      &cb, retmatchpos, rettv->vval.v_list, max_matches);
   callback_free(&cb);
 }
 
@@ -5316,7 +5332,7 @@ void find_pattern_in_path(char_u *ptr, Direction dir, size_t len, bool whole, bo
 
   char_u *pat;
   char_u *new_fname;
-  char_u *curr_fname = curbuf->b_fname;
+  char_u *curr_fname = (char_u *)curbuf->b_fname;
   char_u *prev_fname = NULL;
   linenr_T lnum;
   int depth;
@@ -5356,7 +5372,7 @@ void find_pattern_in_path(char_u *ptr, Direction dir, size_t len, bool whole, bo
     sprintf((char *)pat, whole ? "\\<%.*s\\>" : "%.*s", (int)len, ptr);
     // ignore case according to p_ic, p_scs and pat
     regmatch.rm_ic = ignorecase(pat);
-    regmatch.regprog = vim_regcomp(pat, p_magic ? RE_MAGIC : 0);
+    regmatch.regprog = vim_regcomp((char *)pat, p_magic ? RE_MAGIC : 0);
     xfree(pat);
     if (regmatch.regprog == NULL) {
       goto fpip_end;
@@ -5364,7 +5380,7 @@ void find_pattern_in_path(char_u *ptr, Direction dir, size_t len, bool whole, bo
   }
   inc_opt = (*curbuf->b_p_inc == NUL) ? p_inc : curbuf->b_p_inc;
   if (*inc_opt != NUL) {
-    incl_regmatch.regprog = vim_regcomp(inc_opt, p_magic ? RE_MAGIC : 0);
+    incl_regmatch.regprog = vim_regcomp((char *)inc_opt, p_magic ? RE_MAGIC : 0);
     if (incl_regmatch.regprog == NULL) {
       goto fpip_end;
     }
@@ -5372,7 +5388,8 @@ void find_pattern_in_path(char_u *ptr, Direction dir, size_t len, bool whole, bo
   }
   if (type == FIND_DEFINE && (*curbuf->b_p_def != NUL || *p_def != NUL)) {
     def_regmatch.regprog = vim_regcomp(*curbuf->b_p_def == NUL
-        ? p_def : curbuf->b_p_def, p_magic ? RE_MAGIC : 0);
+                                       ? (char *)p_def : (char *)curbuf->b_p_def,
+                                       p_magic ? RE_MAGIC : 0);
     if (def_regmatch.regprog == NULL) {
       goto fpip_end;
     }
@@ -5394,7 +5411,7 @@ void find_pattern_in_path(char_u *ptr, Direction dir, size_t len, bool whole, bo
   for (;;) {
     if (incl_regmatch.regprog != NULL
         && vim_regexec(&incl_regmatch, line, (colnr_T)0)) {
-      char_u *p_fname = (curr_fname == curbuf->b_fname)
+      char_u *p_fname = (curr_fname == (char_u *)curbuf->b_fname)
                         ? curbuf->b_ffname : curr_fname;
 
       if (inc_opt != NULL && strstr((char *)inc_opt, "\\zs") != NULL) {
@@ -5482,10 +5499,8 @@ void find_pattern_in_path(char_u *ptr, Direction dir, size_t len, bool whole, bo
             } else {
               // find the file name after the end of the match
               for (p = incl_regmatch.endp[0];
-                   *p && !vim_isfilec(*p); p++) {
-              }
-              for (i = 0; vim_isfilec(p[i]); i++) {
-              }
+                   *p && !vim_isfilec(*p); p++) {}
+              for (i = 0; vim_isfilec(p[i]); i++) {}
             }
 
             if (i == 0) {
@@ -5596,7 +5611,7 @@ search_line:
         if (define_matched
             || (compl_cont_status & CONT_SOL)) {
           // compare the first "len" chars from "ptr"
-          startp = skipwhite(p);
+          startp = (char_u *)skipwhite((char *)p);
           if (p_ic) {
             matched = !mb_strnicmp(startp, ptr, len);
           } else {
@@ -5615,7 +5630,7 @@ search_line:
           // is not considered to be a comment line.
           if (skip_comments) {
             if ((*line != '#'
-                 || STRNCMP(skipwhite(line + 1), "define", 6) != 0)
+                 || STRNCMP(skipwhite((char *)line + 1), "define", 6) != 0)
                 && get_leader_len(line, NULL, false, true)) {
               matched = false;
             }
@@ -5626,7 +5641,7 @@ search_line:
              * * /" when looking for "normal".
              * Note: Doesn't skip "/ *" in comments.
              */
-            p = skipwhite(line);
+            p = (char_u *)skipwhite((char *)line);
             if (matched
                 || (p[0] == '/' && p[1] == '*') || p[0] == '*') {
               for (p = line; *p && p < startp; ++p) {
@@ -5690,19 +5705,19 @@ search_line:
           // we read a line, set "already" to check this "line" later
           // if depth >= 0 we'll increase files[depth].lnum far
           // below  -- Acevedo
-          already = aux = p = skipwhite(line);
+          already = aux = p = (char_u *)skipwhite((char *)line);
           p = find_word_start(p);
           p = find_word_end(p);
           if (p > aux) {
-            if (*aux != ')' && IObuff[i-1] != TAB) {
-              if (IObuff[i-1] != ' ') {
+            if (*aux != ')' && IObuff[i - 1] != TAB) {
+              if (IObuff[i - 1] != ' ') {
                 IObuff[i++] = ' ';
               }
               // IObuf =~ "\(\k\|\i\).* ", thus i >= 2
               if (p_js
-                  && (IObuff[i-2] == '.'
-                      || IObuff[i-2] == '?'
-                      || IObuff[i-2] == '!')) {
+                  && (IObuff[i - 2] == '.'
+                      || IObuff[i - 2] == '?'
+                      || IObuff[i - 2] == '!')) {
                 IObuff[i++] = ' ';
               }
             }
@@ -5723,7 +5738,8 @@ search_line:
         }
 
         const int add_r = ins_compl_add_infercase(aux, i, p_ic,
-                                                  curr_fname == curbuf->b_fname ? NULL : curr_fname,
+                                                  curr_fname == (char_u *)curbuf->b_fname
+                                                  ? NULL : curr_fname,
                                                   dir, cont_s_ipos);
         if (add_r == OK) {
           // if dir was BACKWARD then honor it just once
@@ -5797,7 +5813,7 @@ search_line:
             curwin->w_cursor.lnum = lnum;
             check_cursor();
           } else {
-            if (!GETFILE_SUCCESS(getfile(0, files[depth].name, NULL, true,
+            if (!GETFILE_SUCCESS(getfile(0, (char *)files[depth].name, NULL, true,
                                          files[depth].lnum, false))) {
               break;    // failed to jump to file
             }
@@ -5828,7 +5844,7 @@ exit_matched:
           && action == ACTION_EXPAND
           && !(compl_cont_status & CONT_SOL)
           && *startp != NUL
-          && *(p = startp + utfc_ptr2len(startp)) != NUL) {
+          && *(p = startp + utfc_ptr2len((char *)startp)) != NUL) {
         goto search_line;
       }
     }
@@ -5851,8 +5867,8 @@ exit_matched:
       --old_files;
       files[old_files].name = files[depth].name;
       files[old_files].matched = files[depth].matched;
-      --depth;
-      curr_fname = (depth == -1) ? curbuf->b_fname
+      depth--;
+      curr_fname = (depth == -1) ? (char_u *)curbuf->b_fname
                                  : files[depth].name;
       if (depth < depth_displayed) {
         depth_displayed = depth;
@@ -6016,4 +6032,10 @@ void set_last_used_pattern(const bool is_substitute_pattern)
 bool search_was_last_used(void)
 {
   return last_idx == 0;
+}
+
+/// @return  true if 'hlsearch' highlight is currently in use.
+bool using_hlsearch(void)
+{
+  return spats[last_idx].pat != NULL && p_hls && !no_hlsearch;
 }

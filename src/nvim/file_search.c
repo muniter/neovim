@@ -298,7 +298,7 @@ void *vim_findfile_init(char_u *path, char_u *filename, char_u *stopdirs, int le
       && (vim_ispathsep(path[1]) || path[1] == NUL)
       && (!tagfile || vim_strchr(p_cpo, CPO_DOTTAG) == NULL)
       && rel_fname != NULL) {
-    size_t len = (size_t)(path_tail(rel_fname) - rel_fname);
+    size_t len = (size_t)((char_u *)path_tail((char *)rel_fname) - rel_fname);
 
     if (!vim_isAbsName(rel_fname) && len + 1 < MAXPATHL) {
       // Make the start dir an absolute path name.
@@ -371,23 +371,23 @@ void *vim_findfile_init(char_u *path, char_u *filename, char_u *stopdirs, int le
       ptr = xrealloc(search_ctx->ffsc_stopdirs_v,
                      (dircount + 1) * sizeof(char_u *));
       search_ctx->ffsc_stopdirs_v = ptr;
-      walker = vim_strchr(walker, ';');
+      walker = (char_u *)vim_strchr((char *)walker, ';');
       if (walker) {
         assert(walker - helper >= 0);
-        search_ctx->ffsc_stopdirs_v[dircount-1] =
+        search_ctx->ffsc_stopdirs_v[dircount - 1] =
           vim_strnsave(helper, (size_t)(walker - helper));
         walker++;
       } else {
         /* this might be "", which means ascent till top
          * of directory tree.
          */
-        search_ctx->ffsc_stopdirs_v[dircount-1] =
+        search_ctx->ffsc_stopdirs_v[dircount - 1] =
           vim_strsave(helper);
       }
 
       dircount++;
     } while (walker != NULL);
-    search_ctx->ffsc_stopdirs_v[dircount-1] = NULL;
+    search_ctx->ffsc_stopdirs_v[dircount - 1] = NULL;
   }
 
   search_ctx->ffsc_level = level;
@@ -396,7 +396,7 @@ void *vim_findfile_init(char_u *path, char_u *filename, char_u *stopdirs, int le
    *  -fix path
    *  -wildcard_stuff (might be NULL)
    */
-  wc_part = vim_strchr(path, '*');
+  wc_part = (char_u *)vim_strchr((char *)path, '*');
   if (wc_part != NULL) {
     int64_t llevel;
     int len;
@@ -477,7 +477,7 @@ void *vim_findfile_init(char_u *path, char_u *filename, char_u *stopdirs, int le
       STRCAT(ff_expand_buffer, search_ctx->ffsc_fix_path);
       add_pathsep((char *)ff_expand_buffer);
     } else {
-      char_u *p =  path_tail(search_ctx->ffsc_fix_path);
+      char_u *p = (char_u *)path_tail((char *)search_ctx->ffsc_fix_path);
       char_u *wc_path = NULL;
       char_u *temp = NULL;
       int len = 0;
@@ -924,8 +924,8 @@ char_u *vim_findfile(void *search_ctx_arg)
        */
       if (STRNCMP(stackp->ffs_wc_path, "**", 2) == 0) {
         for (int i = stackp->ffs_filearray_cur;
-             i < stackp->ffs_filearray_size; ++i) {
-          if (fnamecmp(stackp->ffs_filearray[i],
+             i < stackp->ffs_filearray_size; i++) {
+          if (FNAMECMP(stackp->ffs_filearray[i],
                        stackp->ffs_fix_path) == 0) {
             continue;             // don't repush same directory
           }
@@ -1050,7 +1050,7 @@ static ff_visited_list_hdr_T *ff_get_visited_list(char_u *filename,
   if (*list_headp != NULL) {
     retptr = *list_headp;
     while (retptr != NULL) {
-      if (fnamecmp(filename, retptr->ffvl_filename) == 0) {
+      if (FNAMECMP(filename, retptr->ffvl_filename) == 0) {
 #ifdef FF_VERBOSE
         if (p_verbose >= 5) {
           verbose_enter_scroll();
@@ -1111,8 +1111,8 @@ static bool ff_wc_equal(char_u *s1, char_u *s2)
   }
 
   for (i = 0, j = 0; s1[i] != NUL && s2[j] != NUL;) {
-    c1 = utf_ptr2char(s1 + i);
-    c2 = utf_ptr2char(s2 + j);
+    c1 = utf_ptr2char((char *)s1 + i);
+    c2 = utf_ptr2char((char *)s2 + j);
 
     if ((p_fic ? mb_tolower(c1) != mb_tolower(c2) : c1 != c2)
         && (prev1 != '*' || prev2 != '*')) {
@@ -1121,8 +1121,8 @@ static bool ff_wc_equal(char_u *s1, char_u *s2)
     prev2 = prev1;
     prev1 = c1;
 
-    i += utfc_ptr2len(s1 + i);
-    j += utfc_ptr2len(s2 + j);
+    i += utfc_ptr2len((char *)s1 + i);
+    j += utfc_ptr2len((char *)s2 + j);
   }
   return s1[i] == s2[j];
 }
@@ -1151,7 +1151,7 @@ static int ff_check_visited(ff_visited_T **visited_list, char_u *fname, char_u *
 
   // check against list of already visited files
   for (vp = *visited_list; vp != NULL; vp = vp->ffv_next) {
-    if ((url && fnamecmp(vp->ffv_fname, ff_expand_buffer) == 0)
+    if ((url && FNAMECMP(vp->ffv_fname, ff_expand_buffer) == 0)
         || (!url && vp->file_id_valid
             && os_fileid_equal(&(vp->file_id), &file_id))) {
       // are the wildcard parts equal
@@ -1317,13 +1317,13 @@ static int ff_path_in_stoplist(char_u *path, int path_len, char_u **stopdirs_v)
        * '/home/rks'. Check for PATHSEP in stopdirs_v[i], else
        * '/home/r' would also match '/home/rks'
        */
-      if (fnamencmp(stopdirs_v[i], path, path_len) == 0
+      if (FNAMENCMP(stopdirs_v[i], path, path_len) == 0
           && vim_ispathsep(stopdirs_v[i][path_len])) {
         return TRUE;
       }
     } else {
-      if (fnamecmp(stopdirs_v[i], path) == 0) {
-        return TRUE;
+      if (FNAMECMP(stopdirs_v[i], path) == 0) {
+        return true;
       }
     }
   }
@@ -1481,7 +1481,7 @@ char_u *find_file_in_path_option(char_u *ptr, size_t len, int options, int first
             && rel_fname != NULL
             && STRLEN(rel_fname) + l < MAXPATHL) {
           STRCPY(NameBuff, rel_fname);
-          STRCPY(path_tail(NameBuff), ff_file_to_find);
+          STRCPY(path_tail((char *)NameBuff), ff_file_to_find);
           l = STRLEN(NameBuff);
         } else {
           STRCPY(NameBuff, ff_file_to_find);
@@ -1643,7 +1643,7 @@ void do_autocmd_dirchanged(char *new_dir, CdScope scope, CdCause cause, bool pre
     abort();
   }
 
-  apply_autocmds(event, (char_u *)buf, (char_u *)new_dir, false, curbuf);
+  apply_autocmds(event, buf, new_dir, false, curbuf);
 
   restore_v_event(dict, &save_v_event);
 
@@ -1698,4 +1698,3 @@ int vim_chdir(char_u *new_dir)
   xfree(dir_name);
   return r;
 }
-

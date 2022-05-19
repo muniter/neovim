@@ -1620,10 +1620,6 @@ func Test_platform_name()
 endfunc
 
 func Test_readdir()
-  if isdirectory('Xdir')
-    call delete('Xdir', 'rf')
-  endif
-
   call mkdir('Xdir')
   call writefile([], 'Xdir/foo.txt')
   call writefile([], 'Xdir/bar.txt')
@@ -1651,6 +1647,30 @@ func Test_readdir()
   call assert_equal(1, len(files))
 
   call delete('Xdir', 'rf')
+endfunc
+
+func Test_delete_rf()
+  call mkdir('Xdir')
+  call writefile([], 'Xdir/foo.txt')
+  call writefile([], 'Xdir/bar.txt')
+  call mkdir('Xdir/[a-1]')  " issue #696
+  call writefile([], 'Xdir/[a-1]/foo.txt')
+  call writefile([], 'Xdir/[a-1]/bar.txt')
+  call assert_true(filereadable('Xdir/foo.txt'))
+  call assert_true('Xdir/[a-1]/foo.txt'->filereadable())
+
+  call assert_equal(0, delete('Xdir', 'rf'))
+  call assert_false(filereadable('Xdir/foo.txt'))
+  call assert_false(filereadable('Xdir/[a-1]/foo.txt'))
+
+  if has('unix')
+    call mkdir('Xdir/Xdir2', 'p')
+    silent !chmod 555 Xdir
+    call assert_equal(-1, delete('Xdir/Xdir2', 'rf'))
+    call assert_equal(-1, delete('Xdir', 'rf'))
+    silent !chmod 755 Xdir
+    call assert_equal(0, delete('Xdir', 'rf'))
+  endif
 endfunc
 
 func Test_call()
@@ -1731,8 +1751,8 @@ func Test_nr2char()
   call assert_equal('a', nr2char(97, 1))
   call assert_equal('a', nr2char(97, 0))
 
-  call assert_equal("\x80\xfc\b\xf4\x80\xfeX\x80\xfeX\x80\xfeX", eval('"\<M-' .. nr2char(0x100000) .. '>"'))
-  call assert_equal("\x80\xfc\b\xfd\x80\xfeX\x80\xfeX\x80\xfeX\x80\xfeX\x80\xfeX", eval('"\<M-' .. nr2char(0x40000000) .. '>"'))
+  call assert_equal("\x80\xfc\b" .. nr2char(0x100000), eval('"\<M-' .. nr2char(0x100000) .. '>"'))
+  call assert_equal("\x80\xfc\b" .. nr2char(0x40000000), eval('"\<M-' .. nr2char(0x40000000) .. '>"'))
 endfunc
 
 " Test for getcurpos() and setpos()

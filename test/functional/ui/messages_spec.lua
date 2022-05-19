@@ -12,6 +12,7 @@ local nvim_prog = helpers.nvim_prog
 local iswin = helpers.iswin
 local exc_exec = helpers.exc_exec
 local exec_lua = helpers.exec_lua
+local poke_eventloop = helpers.poke_eventloop
 
 describe('ui/ext_messages', function()
   local screen
@@ -1013,7 +1014,7 @@ vimComment     xxx match /\s"[^\-:.%#=*].*$/ms=s+1,lc=1  excludenl contains=@vim
   end)
 
   it('redraws NOT_VALID correctly after message', function()
-    -- edge case: only one window was set NOT_VALID. Orginal report
+    -- edge case: only one window was set NOT_VALID. Original report
     -- used :make, but fake it using one command to set the current
     -- window NOT_VALID and another to show a long message.
     command("set more")
@@ -1111,6 +1112,8 @@ describe('ui/ext_messages', function()
       [3] = {bold = true},
       [4] = {bold = true, foreground = Screen.colors.SeaGreen4},
       [5] = {foreground = Screen.colors.Blue1},
+      [6] = {reverse = true},
+      [7] = {bold = true, reverse = true},
     })
   end)
 
@@ -1202,11 +1205,113 @@ describe('ui/ext_messages', function()
       {content = { { "Press ENTER or type command to continue", 4 } }, kind = "return_prompt" }
     }}
   end)
+
+  it('supports global statusline', function()
+    feed(":set laststatus=3<cr>")
+    feed(":sp<cr>")
+    feed("<c-l>")
+    feed(":set cmdheight<cr>")
+    screen:expect({grid=[[
+      ^                                                                                |
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      ────────────────────────────────────────────────────────────────────────────────|
+                                                                                      |
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {7:[No Name]                                                                       }|
+    ]], messages={
+      {content = { { "  cmdheight=0" } }, kind = "" }
+    }})
+
+    feed("<c-w>+")
+    feed("<c-l>")
+    feed(":set cmdheight<cr>")
+    screen:expect({grid=[[
+      ^                                                                                |
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      ────────────────────────────────────────────────────────────────────────────────|
+                                                                                      |
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {7:[No Name]                                                                       }|
+    ]], messages={
+      {content = { { "  cmdheight=0" } }, kind = "" }
+    }})
+
+    feed(":set mouse=a<cr>")
+    meths.input_mouse('left', 'press', '', 0, 12, 10)
+    poke_eventloop()
+    meths.input_mouse('left', 'drag', '', 0, 12, 10)
+    meths.input_mouse('left', 'drag', '', 0, 11, 10)
+    feed("<c-l>")
+    feed(":set cmdheight<cr>")
+    screen:expect({grid=[[
+      ^                                                                                |
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      ────────────────────────────────────────────────────────────────────────────────|
+                                                                                      |
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {1:~                                                                               }|
+      {7:[No Name]                                                                       }|
+    ]], messages={
+      {content = { { "  cmdheight=0" } }, kind = "" }
+    }})
+  end)
 end)
 
 describe('ui/msg_puts_printf', function()
   it('output multibyte characters correctly', function()
-    if helpers.pending_win32(pending) then return end
     local screen
     local cmd = ''
     local locale_dir = test_build_dir..'/share/locale/ja/LC_MESSAGES'
@@ -1227,7 +1332,7 @@ describe('ui/msg_puts_printf', function()
         pending('Locale ja_JP.UTF-8 not supported', function() end)
         return
       elseif helpers.isCI() then
-        -- Fails non--Windows CI. Message catalog direcotry issue?
+        -- Fails non--Windows CI. Message catalog directory issue?
         pending('fails on unix CI', function() end)
         return
       end

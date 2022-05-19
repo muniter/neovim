@@ -23,15 +23,15 @@ cursorentry_T shape_table[SHAPE_IDX_COUNT] =
 {
   // Values are set by 'guicursor' and 'mouseshape'.
   // Adjust the SHAPE_IDX_ defines when changing this!
-  { "normal", 0, 0, 0, 700L, 400L, 250L, 0, 0, "n", SHAPE_CURSOR+SHAPE_MOUSE },
-  { "visual", 0, 0, 0, 700L, 400L, 250L, 0, 0, "v", SHAPE_CURSOR+SHAPE_MOUSE },
-  { "insert", 0, 0, 0, 700L, 400L, 250L, 0, 0, "i", SHAPE_CURSOR+SHAPE_MOUSE },
-  { "replace", 0, 0, 0, 700L, 400L, 250L, 0, 0, "r", SHAPE_CURSOR+SHAPE_MOUSE },
-  { "cmdline_normal", 0, 0, 0, 700L, 400L, 250L, 0, 0, "c", SHAPE_CURSOR+SHAPE_MOUSE },
-  { "cmdline_insert", 0, 0, 0, 700L, 400L, 250L, 0, 0, "ci", SHAPE_CURSOR+SHAPE_MOUSE },
-  { "cmdline_replace", 0, 0, 0, 700L, 400L, 250L, 0, 0, "cr", SHAPE_CURSOR+SHAPE_MOUSE },
-  { "operator", 0, 0, 0, 700L, 400L, 250L, 0, 0, "o", SHAPE_CURSOR+SHAPE_MOUSE },
-  { "visual_select", 0, 0, 0, 700L, 400L, 250L, 0, 0, "ve", SHAPE_CURSOR+SHAPE_MOUSE },
+  { "normal", 0, 0, 0, 700L, 400L, 250L, 0, 0, "n", SHAPE_CURSOR + SHAPE_MOUSE },
+  { "visual", 0, 0, 0, 700L, 400L, 250L, 0, 0, "v", SHAPE_CURSOR + SHAPE_MOUSE },
+  { "insert", 0, 0, 0, 700L, 400L, 250L, 0, 0, "i", SHAPE_CURSOR + SHAPE_MOUSE },
+  { "replace", 0, 0, 0, 700L, 400L, 250L, 0, 0, "r", SHAPE_CURSOR + SHAPE_MOUSE },
+  { "cmdline_normal", 0, 0, 0, 700L, 400L, 250L, 0, 0, "c", SHAPE_CURSOR + SHAPE_MOUSE },
+  { "cmdline_insert", 0, 0, 0, 700L, 400L, 250L, 0, 0, "ci", SHAPE_CURSOR + SHAPE_MOUSE },
+  { "cmdline_replace", 0, 0, 0, 700L, 400L, 250L, 0, 0, "cr", SHAPE_CURSOR + SHAPE_MOUSE },
+  { "operator", 0, 0, 0, 700L, 400L, 250L, 0, 0, "o", SHAPE_CURSOR + SHAPE_MOUSE },
+  { "visual_select", 0, 0, 0, 700L, 400L, 250L, 0, 0, "ve", SHAPE_CURSOR + SHAPE_MOUSE },
   { "cmdline_hover", 0, 0, 0,   0L,   0L,   0L, 0, 0, "e", SHAPE_MOUSE },
   { "statusline_hover", 0, 0, 0,   0L,   0L,   0L, 0, 0, "s", SHAPE_MOUSE },
   { "statusline_drag", 0, 0, 0,   0L,   0L,   0L, 0, 0, "sd", SHAPE_MOUSE },
@@ -94,11 +94,11 @@ Array mode_style_array(void)
 /// @returns error message for an illegal option, NULL otherwise.
 char *parse_shape_opt(int what)
 {
-  char_u *colonp;
-  char_u *commap;
-  char_u *slashp;
-  char_u *p = NULL;
-  char_u *endp;
+  char *colonp;
+  char *commap;
+  char *slashp;
+  char *p = NULL;
+  char *endp;
   int idx = 0;                          // init for GCC
   int all_idx;
   int len;
@@ -118,7 +118,7 @@ char *parse_shape_opt(int what)
       }
     }
     // Repeat for all comma separated parts.
-    char_u *modep = p_guicursor;
+    char *modep = (char *)p_guicursor;
     while (modep != NULL && *modep != NUL) {
       colonp = vim_strchr(modep, ':');
       commap = vim_strchr(modep, ',');
@@ -169,7 +169,7 @@ char *parse_shape_opt(int what)
         for (p = colonp + 1; *p && *p != ',';) {
           {
             // First handle the ones with a number argument.
-            i = *p;
+            i = (uint8_t)(*p);
             len = 0;
             if (STRNICMP(p, "ver", 3) == 0) {
               len = 3;
@@ -187,7 +187,7 @@ char *parse_shape_opt(int what)
               if (!ascii_isdigit(*p)) {
                 return N_("E548: digit expected");
               }
-              int n = getdigits_int(&p, false, 0);
+              int n = getdigits_int((char_u **)&p, false, 0);
               if (len == 3) {               // "ver" or "hor"
                 if (n == 0) {
                   return N_("E549: Illegal percentage");
@@ -226,11 +226,11 @@ char *parse_shape_opt(int what)
               slashp = vim_strchr(p, '/');
               if (slashp != NULL && slashp < endp) {
                 // "group/langmap_group"
-                i = syn_check_group((char *)p, (size_t)(slashp - p));
+                i = syn_check_group(p, (size_t)(slashp - p));
                 p = slashp + 1;
               }
               if (round == 2) {
-                shape_table[idx].id = syn_check_group((char *)p, (size_t)(endp - p));
+                shape_table[idx].id = syn_check_group(p, (size_t)(endp - p));
                 shape_table[idx].id_lm = shape_table[idx].id;
                 if (slashp != NULL && slashp < endp) {
                   shape_table[idx].id = i;
@@ -277,6 +277,7 @@ char *parse_shape_opt(int what)
 ///
 /// @param exclusive If 'selection' option is "exclusive".
 bool cursor_is_block_during_visual(bool exclusive)
+  FUNC_ATTR_PURE
 {
   int mode_idx = exclusive ? SHAPE_IDX_VE : SHAPE_IDX_V;
   return (SHAPE_BLOCK == shape_table[mode_idx].shape
@@ -300,6 +301,7 @@ int cursor_mode_str2int(const char *mode)
 
 /// Check if a syntax id is used as a cursor style.
 bool cursor_mode_uses_syn_id(int syn_id)
+  FUNC_ATTR_PURE
 {
   if (*p_guicursor == NUL) {
     return false;
@@ -316,16 +318,17 @@ bool cursor_mode_uses_syn_id(int syn_id)
 
 /// Return the index into shape_table[] for the current mode.
 int cursor_get_mode_idx(void)
+  FUNC_ATTR_PURE
 {
-  if (State == SHOWMATCH) {
+  if (State == MODE_SHOWMATCH) {
     return SHAPE_IDX_SM;
   } else if (State & VREPLACE_FLAG) {
     return SHAPE_IDX_R;
   } else if (State & REPLACE_FLAG) {
     return SHAPE_IDX_R;
-  } else if (State & INSERT) {
+  } else if (State & MODE_INSERT) {
     return SHAPE_IDX_I;
-  } else if (State & CMDLINE) {
+  } else if (State & MODE_CMDLINE) {
     if (cmdline_at_end()) {
       return SHAPE_IDX_C;
     } else if (cmdline_overstrike()) {

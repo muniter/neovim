@@ -13,12 +13,13 @@
 #include "nvim/ex_cmds2.h"
 #include "nvim/fileio.h"
 #include "nvim/getchar.h"
-#include "nvim/keymap.h"
+#include "nvim/keycodes.h"
 #include "nvim/main.h"
 #include "nvim/mbyte.h"
 #include "nvim/memory.h"
 #include "nvim/msgpack_rpc/channel.h"
 #include "nvim/os/input.h"
+#include "nvim/screen.h"
 #include "nvim/state.h"
 #include "nvim/ui.h"
 #include "nvim/vim.h"
@@ -81,7 +82,7 @@ void input_stop(void)
 
 static void cursorhold_event(void **argv)
 {
-  event_T event = State & INSERT ? EVENT_CURSORHOLDI : EVENT_CURSORHOLD;
+  event_T event = State & MODE_INSERT ? EVENT_CURSORHOLDI : EVENT_CURSORHOLD;
   apply_autocmds(event, NULL, NULL, false, curbuf);
   did_cursorhold = true;
 }
@@ -98,12 +99,17 @@ static void create_cursorhold_event(bool events_enabled)
 
 /// Low level input function
 ///
-/// wait until either the input buffer is non-empty or , if `events` is not NULL
+/// wait until either the input buffer is non-empty or, if `events` is not NULL
 /// until `events` is non-empty.
 int os_inchar(uint8_t *buf, int maxlen, int ms, int tb_change_cnt, MultiQueue *events)
 {
   if (maxlen && rbuffer_size(input_buffer)) {
     return (int)rbuffer_read(input_buffer, (char *)buf, (size_t)maxlen);
+  }
+
+  // No risk of a UI flood, so disable CTRL-C "interrupt" behavior if it's mapped.
+  if ((mapped_ctrl_c | curbuf->b_mapped_ctrl_c) & get_real_state()) {
+    ctrl_c_interrupts = false;
   }
 
   InbufPollResult result;
@@ -126,6 +132,8 @@ int os_inchar(uint8_t *buf, int maxlen, int ms, int tb_change_cnt, MultiQueue *e
       }
     }
   }
+
+  ctrl_c_interrupts = true;
 
   // If input was put directly in typeahead buffer bail out here.
   if (typebuf_changed(tb_change_cnt)) {
@@ -171,15 +179,7 @@ void os_breakcheck(void)
     return;
   }
 
-  int save_us = updating_screen;
-  // We do not want screen_resize() to redraw here.
-  // TODO(bfredl): we are already special casing redraw events, is this
-  // hack still needed?
-  updating_screen++;
-
   loop_poll_events(&main_loop, 0);
-
-  updating_screen = save_us;
 }
 
 #define BREAKCHECK_SKIP 1000
@@ -238,9 +238,9 @@ size_t input_enqueue(String keys)
     // but since the keys are UTF-8, so the first byte cannot be
     // K_SPECIAL(0x80).
     uint8_t buf[19] = { 0 };
+    // Do not simplify the keys here. Simplification will be done later.
     unsigned int new_size
-      = trans_special((const uint8_t **)&ptr, (size_t)(end - ptr), buf, true,
-                      false);
+      = trans_special((const uint8_t **)&ptr, (size_t)(end - ptr), buf, FSK_KEYCODE, true, NULL);
 
     if (new_size) {
       new_size = handle_mouse_event(&ptr, buf, new_size);
@@ -275,7 +275,7 @@ size_t input_enqueue(String keys)
   }
 
   size_t rv = (size_t)(ptr - keys.data);
-  process_interrupts();
+  process_ctrl_c();
   return rv;
 }
 
@@ -288,8 +288,13 @@ static uint8_t check_multiclick(int code, int grid, int row, int col)
   static int orig_mouse_row = 0;
   static uint64_t orig_mouse_time = 0;  // time of previous mouse click
 
-  if (code == KE_LEFTRELEASE || code == KE_RIGHTRELEASE
-      || code == KE_MIDDLERELEASE) {
+  if (code == KE_LEFTRELEASE
+      || code == KE_RIGHTRELEASE
+      || code == KE_MIDDLERELEASE
+      || code == KE_MOUSEDOWN
+      || code == KE_MOUSEUP
+      || code == KE_MOUSELEFT
+      || code == KE_MOUSERIGHT) {
     return 0;
   }
   uint64_t mouse_time = os_hrtime();    // time of current mouse click (ns)
@@ -408,7 +413,7 @@ size_t input_enqueue_mouse(int code, uint8_t modifier, int grid, int row, int co
   mouse_row = row;
   mouse_col = col;
 
-  size_t written = 3 + (size_t)(p-buf);
+  size_t written = 3 + (size_t)(p - buf);
   rbuffer_write(input_buffer, (char *)buf, written);
   return written;
 }
@@ -475,15 +480,20 @@ static void input_read_cb(Stream *stream, RBuffer *buf, size_t c, void *data, bo
   }
 }
 
-static void process_interrupts(void)
+static void process_ctrl_c(void)
 {
-  if ((mapped_ctrl_c | curbuf->b_mapped_ctrl_c) & get_real_state()) {
+  if (!ctrl_c_interrupts) {
     return;
   }
 
   size_t consume_count = 0;
   RBUFFER_EACH_REVERSE(input_buffer, c, i) {
-    if ((uint8_t)c == Ctrl_C) {
+    if ((uint8_t)c == Ctrl_C
+        || ((uint8_t)c == 'C' && i >= 3
+            && (uint8_t)(*rbuffer_get(input_buffer, i - 3)) == K_SPECIAL
+            && (uint8_t)(*rbuffer_get(input_buffer, i - 2)) == KS_MODIFIER
+            && (uint8_t)(*rbuffer_get(input_buffer, i - 1)) == MOD_MASK_CTRL)) {
+      *rbuffer_get(input_buffer, i) = Ctrl_C;
       got_int = true;
       consume_count = i;
       break;

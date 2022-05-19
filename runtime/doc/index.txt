@@ -927,7 +927,7 @@ tag		command	      note action in Visual mode	~
 |v_K|		K		   run 'keywordprg' on the highlighted area
 |v_O|		O		   move horizontally to other corner of area
 |v_P|		P		   replace highlighted area with register
-				   contents; unnamed register is unchanged
+				   contents; registers are unchanged
 		Q		   does not start Ex mode
 |v_R|		R		2  delete the highlighted lines and start
 				   insert
@@ -1501,8 +1501,9 @@ tag		command		action ~
 |:recover|	:rec[over]	recover a file from a swap file
 |:redo|		:red[o]		redo one undone change
 |:redir|	:redi[r]	redirect messages to a file or register
-|:redraw|	:redr[aw]	  force a redraw of the display
-|:redrawstatus|	:redraws[tatus]	  force a redraw of the status line(s)
+|:redraw|	:redr[aw]	force a redraw of the display
+|:redrawstatus|	:redraws[tatus]	force a redraw of the status line(s) and
+				window bar(s)
 |:redrawtabline|  :redrawt[abline]  force a redraw of the tabline
 |:registers|	:reg[isters]	display the contents of registers
 |:resize|	:res[ize]	change current window height

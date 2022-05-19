@@ -111,10 +111,10 @@ void pum_display(pumitem_T *array, int size, int selected, bool array_changed, i
     // To keep the code simple, we only allow changing the
     // draw mode when the popup menu is not being displayed
     pum_external = ui_has(kUIPopupmenu)
-                   || (State == CMDLINE && ui_has(kUIWildmenu));
+                   || (State == MODE_CMDLINE && ui_has(kUIWildmenu));
   }
 
-  pum_rl = (curwin->w_p_rl && State != CMDLINE);
+  pum_rl = (curwin->w_p_rl && State != MODE_CMDLINE);
 
   do {
     // Mark the pum as visible already here,
@@ -126,7 +126,7 @@ void pum_display(pumitem_T *array, int size, int selected, bool array_changed, i
     below_row = cmdline_row;
 
     // wildoptions=pum
-    if (State == CMDLINE) {
+    if (State == MODE_CMDLINE) {
       pum_win_row = ui_has(kUICmdline) ? 0 : cmdline_row;
       cursor_col = cmd_startcol;
       pum_anchor_grid = ui_has(kUICmdline) ? -1 : DEFAULT_GRID_HANDLE;
@@ -419,19 +419,19 @@ void pum_redraw(void)
 
   grid_assign_handle(&pum_grid);
 
-  pum_grid.zindex = ((State == CMDLINE)
+  pum_grid.zindex = ((State == MODE_CMDLINE)
                      ? kZIndexCmdlinePopupMenu : kZIndexPopupMenu);
 
-  bool moved = ui_comp_put_grid(&pum_grid, pum_row, pum_col-col_off,
+  bool moved = ui_comp_put_grid(&pum_grid, pum_row, pum_col - col_off,
                                 pum_height, grid_width, false, true);
   bool invalid_grid = moved || pum_invalid;
   pum_invalid = false;
   must_redraw_pum = false;
 
   if (!pum_grid.chars
-      || pum_grid.Rows != pum_height || pum_grid.Columns != grid_width) {
+      || pum_grid.rows != pum_height || pum_grid.cols != grid_width) {
     grid_alloc(&pum_grid, pum_height, grid_width, !invalid_grid, false);
-    ui_call_grid_resize(pum_grid.handle, pum_grid.Columns, pum_grid.Rows);
+    ui_call_grid_resize(pum_grid.handle, pum_grid.cols, pum_grid.rows);
   } else if (invalid_grid) {
     grid_invalidate(&pum_grid);
   }
@@ -439,7 +439,7 @@ void pum_redraw(void)
     const char *anchor = pum_above ? "SW" : "NW";
     int row_off = pum_above ? -pum_height : 0;
     ui_call_win_float_pos(pum_grid.handle, -1, cstr_to_string(anchor),
-                          pum_anchor_grid, pum_row-row_off, pum_col-col_off,
+                          pum_anchor_grid, pum_row - row_off, pum_col - col_off,
                           false, pum_grid.zindex);
   }
 
@@ -521,7 +521,7 @@ void pum_redraw(void)
 
               if (size > pum_width) {
                 do {
-                  size -= utf_ptr2cells(rt);
+                  size -= utf_ptr2cells((char *)rt);
                   MB_PTR_ADV(rt);
                 } while (size > pum_width);
 
@@ -694,7 +694,7 @@ static int pum_set_selected(int n, int repeat)
     if ((pum_array[pum_selected].pum_info != NULL)
         && (Rows > 10)
         && (repeat <= 1)
-        && (vim_strchr(p_cot, 'p') != NULL)) {
+        && (vim_strchr((char *)p_cot, 'p') != NULL)) {
       win_T *curwin_save = curwin;
       tabpage_T *curtab_save = curtab;
       int res = OK;
@@ -748,13 +748,13 @@ static int pum_set_selected(int n, int repeat)
           linenr_T lnum = 0;
 
           for (p = pum_array[pum_selected].pum_info; *p != NUL;) {
-            e = vim_strchr(p, '\n');
+            e = (char_u *)vim_strchr((char *)p, '\n');
             if (e == NULL) {
-              ml_append(lnum++, p, 0, false);
+              ml_append(lnum++, (char *)p, 0, false);
               break;
             } else {
               *e = NUL;
-              ml_append(lnum++, p, (int)(e - p + 1), false);
+              ml_append(lnum++, (char *)p, (int)(e - p + 1), false);
               *e = '\n';
               p = e + 1;
             }

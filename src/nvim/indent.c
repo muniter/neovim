@@ -243,7 +243,7 @@ int set_indent(int size, int flags)
   if (flags & SIN_INSERT) {
     p = oldline;
   } else {
-    p = skipwhite(p);
+    p = (char_u *)skipwhite((char *)p);
   }
   line_len = (int)STRLEN(p) + 1;
 
@@ -325,7 +325,7 @@ int set_indent(int size, int flags)
         todo -= tab_pad;
         ind_done += tab_pad;
       }
-      p = skipwhite(p);
+      p = (char_u *)skipwhite((char *)p);
     }
 
     for (;;) {
@@ -353,10 +353,10 @@ int set_indent(int size, int flags)
     const colnr_T new_offset = (colnr_T)(s - newline);
 
     // this may free "newline"
-    ml_replace(curwin->w_cursor.lnum, newline, false);
+    ml_replace(curwin->w_cursor.lnum, (char *)newline, false);
     if (!(flags & SIN_NOMARK)) {
       extmark_splice_cols(curbuf,
-                          (int)curwin->w_cursor.lnum-1,
+                          (int)curwin->w_cursor.lnum - 1,
                           skipcols,
                           old_offset - skipcols,
                           new_offset - skipcols,
@@ -404,10 +404,10 @@ int get_number_indent(linenr_T lnum)
   pos.lnum = 0;
 
   // In format_lines() (i.e. not insert mode), fo+=q is needed too...
-  if ((State & INSERT) || has_format_option(FO_Q_COMS)) {
+  if ((State & MODE_INSERT) || has_format_option(FO_Q_COMS)) {
     lead_len = get_leader_len(ml_get(lnum), NULL, false, true);
   }
-  regmatch.regprog = vim_regcomp(curbuf->b_p_flp, RE_MAGIC);
+  regmatch.regprog = vim_regcomp((char *)curbuf->b_p_flp, RE_MAGIC);
 
   if (regmatch.regprog != NULL) {
     regmatch.rm_ic = false;
@@ -467,7 +467,7 @@ int get_breakindent_win(win_T *wp, char_u *line)
   // add additional indent for numbered lists
   if (wp->w_briopt_list != 0) {
     regmatch_T regmatch = {
-      .regprog = vim_regcomp(curbuf->b_p_flp,
+      .regprog = vim_regcomp((char *)curbuf->b_p_flp,
                              RE_MAGIC + RE_STRING + RE_AUTO + RE_STRICT),
     };
 
@@ -522,6 +522,11 @@ int inindent(int extra)
   }
 }
 
+/// @return  true if the conditions are OK for smart indenting.
+bool may_do_si(void)
+{
+  return curbuf->b_p_si && !curbuf->b_p_cin && *curbuf->b_p_inde == NUL && !p_paste;
+}
 
 // Get indent level from 'indentexpr'.
 int get_expr_indent(void)
@@ -548,7 +553,7 @@ int get_expr_indent(void)
   // Need to make a copy, the 'indentexpr' option could be changed while
   // evaluating it.
   char_u *inde_copy = vim_strsave(curbuf->b_p_inde);
-  indent = (int)eval_to_number(inde_copy);
+  indent = (int)eval_to_number((char *)inde_copy);
   xfree(inde_copy);
 
   if (use_sandbox) {
@@ -560,7 +565,7 @@ int get_expr_indent(void)
   // Pretend to be in Insert mode, allow cursor past end of line for "o"
   // command.
   save_State = State;
-  State = INSERT;
+  State = MODE_INSERT;
   curwin->w_cursor = save_pos;
   curwin->w_curswant = save_curswant;
   curwin->w_set_curswant = save_set_curswant;

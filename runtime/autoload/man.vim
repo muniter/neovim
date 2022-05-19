@@ -123,12 +123,10 @@ function! s:system(cmd, ...) abort
 endfunction
 
 function! s:set_options(pager) abort
-  setlocal filetype=man
   setlocal noswapfile buftype=nofile bufhidden=hide
   setlocal nomodified readonly nomodifiable
-  if a:pager
-    nnoremap <silent> <buffer> <nowait> q :lclose<CR>:q<CR>
-  endif
+  let b:pager = a:pager
+  setlocal filetype=man
 endfunction
 
 function! s:get_page(path) abort
@@ -173,6 +171,12 @@ function! man#show_toc() abort
   while lnum && lnum < last_line
     let text = getline(lnum)
     if text =~# '^\%( \{3\}\)\=\S.*$'
+      " if text is a section title
+      call add(toc, {'bufnr': bufnr('%'), 'lnum': lnum, 'text': text})
+    elseif text =~# '^\s\+\%(+\|-\)\S\+'
+      " if text is a flag title. we strip whitespaces and prepend two
+      " spaces to have a consistent format in the loclist.
+      let text = '  ' .. substitute(text, '^\s*\(.\{-}\)\s*$', '\1', '')
       call add(toc, {'bufnr': bufnr('%'), 'lnum': lnum, 'text': text})
     endif
     let lnum = nextnonblank(lnum + 1)
@@ -473,10 +477,6 @@ endfunction
 
 " Called when Nvim is invoked as $MANPAGER.
 function! man#init_pager() abort
-  " https://github.com/neovim/neovim/issues/6828
-  let og_modifiable = &modifiable
-  setlocal modifiable
-
   if getline(1) =~# '^\s*$'
     silent keepjumps 1delete _
   else
@@ -496,7 +496,6 @@ function! man#init_pager() abort
   endif
 
   call s:set_options(v:true)
-  let &l:modifiable = og_modifiable
 endfunction
 
 function! man#goto_tag(pattern, flags, info) abort

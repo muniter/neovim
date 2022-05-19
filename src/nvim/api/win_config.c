@@ -264,7 +264,7 @@ Dictionary nvim_win_get_config(Window window, Error *err)
         String s = cstrn_to_string((const char *)config->border_chars[i], sizeof(schar_T));
 
         int hi_id = config->border_hl_ids[i];
-        char_u *hi_name = syn_id2name(hi_id);
+        char *hi_name = (char *)syn_id2name(hi_id);
         if (hi_name[0]) {
           ADD(tuple, STRING_OBJ(s));
           ADD(tuple, STRING_OBJ(cstr_to_string((const char *)hi_name)));
@@ -354,7 +354,7 @@ static void parse_border_style(Object style, FloatConfig *fconfig, Error *err)
   if (style.type == kObjectTypeArray) {
     Array arr = style.data.array;
     size_t size = arr.size;
-    if (!size || size > 8 || (size & (size-1))) {
+    if (!size || size > 8 || (size & (size - 1))) {
       api_set_error(err, kErrorTypeValidation,
                     "invalid number of border chars");
       return;
@@ -387,12 +387,12 @@ static void parse_border_style(Object style, FloatConfig *fconfig, Error *err)
         return;
       }
       if (string.size
-          && mb_string2cells_len((char_u *)string.data, string.size) > 1) {
+          && mb_string2cells_len(string.data, string.size) > 1) {
         api_set_error(err, kErrorTypeValidation,
                       "border chars must be one cell");
         return;
       }
-      size_t len = MIN(string.size, sizeof(*chars)-1);
+      size_t len = MIN(string.size, sizeof(*chars) - 1);
       if (len) {
         memcpy(chars[i], string.data, len);
       }
@@ -400,8 +400,8 @@ static void parse_border_style(Object style, FloatConfig *fconfig, Error *err)
       hl_ids[i] = hl_id;
     }
     while (size < 8) {
-      memcpy(chars+size, chars, sizeof(*chars) * size);
-      memcpy(hl_ids+size, hl_ids, sizeof(*hl_ids) * size);
+      memcpy(chars + size, chars, sizeof(*chars) * size);
+      memcpy(hl_ids + size, hl_ids, sizeof(*hl_ids) * size);
       size <<= 1;
     }
     if ((chars[7][0] && chars[1][0] && !chars[0][0])

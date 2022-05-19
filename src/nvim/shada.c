@@ -151,8 +151,8 @@ typedef enum {
   kSDItemBufferList = 9,     ///< Buffer list.
   kSDItemLocalMark = 10,     ///< Buffer-local mark.
   kSDItemChange = 11,        ///< Item from buffer change list.
-#define SHADA_LAST_ENTRY ((uint64_t)kSDItemChange)
 } ShadaEntryType;
+#define SHADA_LAST_ENTRY ((uint64_t)kSDItemChange)
 
 /// Possible results when reading ShaDa file
 typedef enum {
@@ -1053,7 +1053,7 @@ static buf_T *find_buffer(khash_t(fnamebufs) *const fname_bufs, const char *cons
   kh_key(fname_bufs, k) = xstrdup(fname);
   FOR_ALL_BUFFERS(buf) {
     if (buf->b_ffname != NULL) {
-      if (fnamecmp(fname, buf->b_ffname) == 0) {
+      if (FNAMECMP(fname, buf->b_ffname) == 0) {
         kh_val(fname_bufs, k) = buf;
         return buf;
       }
@@ -1238,7 +1238,7 @@ static void shada_read(ShaDaReadDef *const sd_reader, const int flags)
       // string is close to useless: you can only use it with :& or :~ and
       // that’s all because s//~ is not available until the first call to
       // regtilde. Vim was not calling this for some reason.
-      (void)(char *)regtilde((char_u *)cur_entry.data.sub_string.sub, p_magic);
+      (void)(char *)regtilde((char_u *)cur_entry.data.sub_string.sub, p_magic, false);
       // Do not free shada entry: its allocated memory was saved above.
       break;
     case kSDItemHistoryEntry:
@@ -1265,7 +1265,7 @@ static void shada_read(ShaDaReadDef *const sd_reader, const int flags)
         }
       }
       if (!op_reg_set(cur_entry.data.reg.name, (yankreg_T) {
-        .y_array = (char_u **)cur_entry.data.reg.contents,
+        .y_array = cur_entry.data.reg.contents,
         .y_size = cur_entry.data.reg.contents_size,
         .y_type = cur_entry.data.reg.type,
         .y_width = (colnr_T)cur_entry.data.reg.width,
@@ -1289,9 +1289,7 @@ static void shada_read(ShaDaReadDef *const sd_reader, const int flags)
         XFREE_CLEAR(cur_entry.data.filemark.fname);
       }
       xfmark_T fm = (xfmark_T) {
-        .fname = (char_u *)(buf == NULL
-                               ? cur_entry.data.filemark.fname
-                               : NULL),
+        .fname = buf == NULL ? cur_entry.data.filemark.fname : NULL,
         .fmark = {
           .mark = cur_entry.data.filemark.mark,
           .fnum = (buf == NULL ? 0 : buf->b_fnum),
@@ -1449,7 +1447,7 @@ static const char *shada_get_default_file(void)
   FUNC_ATTR_WARN_UNUSED_RESULT
 {
   if (default_shada_file == NULL) {
-    char *shada_dir = stdpaths_user_data_subpath("shada", 0, false);
+    char *shada_dir = stdpaths_user_state_subpath("shada", 0, false);
     default_shada_file = concat_fnames_realloc(shada_dir, "main.shada", true);
   }
   return default_shada_file;
@@ -2400,7 +2398,7 @@ static inline void shada_initialize_registers(WriteMergerState *const wms, int m
         .timestamp = reg.timestamp,
         .data = {
           .reg = {
-            .contents = (char **)reg.y_array,
+            .contents = reg.y_array,
             .contents_size = reg.y_size,
             .type = reg.y_type,
             .width = (size_t)(reg.y_type == kMTBlockWise ? reg.y_width : 0),
@@ -3302,7 +3300,7 @@ static ShaDaReadResult msgpack_read_uint64(ShaDaReadDef *const sd_reader, const 
     uint64_t buf = 0;
     char *buf_u8 = (char *)&buf;
     ShaDaReadResult fl_ret;
-    if ((fl_ret = fread_len(sd_reader, &(buf_u8[sizeof(buf)-length]), length))
+    if ((fl_ret = fread_len(sd_reader, &(buf_u8[sizeof(buf) - length]), length))
         != kSDReadStatusSuccess) {
       return fl_ret;
     }
@@ -4027,9 +4025,9 @@ static inline size_t shada_init_jumps(PossiblyFreedShadaEntry *jumps,
         : fm.fmark.fnum != 0) {
       continue;
     }
-    const char *const fname = (char *)(fm.fmark.fnum == 0
-                                        ? (fm.fname == NULL ? NULL : fm.fname)
-                                                            : buf ? buf->b_ffname : NULL);
+    const char *const fname =
+      (char *)(fm.fmark.fnum ==
+               0 ? (fm.fname == NULL ? NULL : (char_u *)fm.fname) : buf ? buf->b_ffname : NULL);
     if (fname == NULL) {
       continue;
     }

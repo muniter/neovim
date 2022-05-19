@@ -1127,7 +1127,7 @@ func Test_cmdwin_tabpage()
   tabedit
   " v8.2.1919 isn't ported yet, so E492 is thrown after E11 here.
   " v8.2.1183 also isn't ported yet, so we also can't assert E11 directly.
-  " For now, assert E11 and E492 seperately. When v8.2.1183 is ported, the
+  " For now, assert E11 and E492 separately. When v8.2.1183 is ported, the
   " assert for E492 will fail and this workaround should be removed.
   " call assert_fails("silent norm q/g	:I\<Esc>", 'E11:')
   call assert_fails("silent norm q/g	", 'E11:')
@@ -1210,6 +1210,30 @@ func Test_recalling_cmdline()
 
   unlet g:cmdlines
   cunmap <Plug>(save-cmdline)
+endfunc
+
+func Check_completion()
+  call assert_equal('let a', getcmdline())
+  call assert_equal(6, getcmdpos())
+  call assert_equal(7, getcmdscreenpos())
+  call assert_equal('var', getcmdcompltype())
+  return ''
+endfunc
+
+func Test_screenpos_and_completion()
+  call feedkeys(":let a\<C-R>=Check_completion()\<CR>\<Esc>", "xt")
+endfunc
+
+func Test_recursive_register()
+  let @= = ''
+  silent! ?e/
+  let caught = 'no'
+  try
+    normal // 
+  catch /E169:/
+    let caught = 'yes'
+  endtry
+  call assert_equal('yes', caught)
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

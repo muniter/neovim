@@ -15,7 +15,7 @@
 #include "nvim/syntax_defs.h"
 #include "nvim/types.h"
 
-#define IOSIZE         (1024+1)          // file I/O and sprintf buffer size
+#define IOSIZE         (1024 + 1)          // file I/O and sprintf buffer size
 
 #define MSG_BUF_LEN 480                 // length of buffer for small messages
 #define MSG_BUF_CLEN  (MSG_BUF_LEN / 6)  // cell length (worst case: utf-8
@@ -84,7 +84,7 @@ EXTERN struct nvim_stats_s {
 //                      0          not starting anymore
 
 // Number of Rows and Columns in the screen.
-// Note: Use default_grid.Rows and default_grid.Columns to access items in
+// Note: Use default_grid.rows and default_grid.cols to access items in
 // default_grid.chars[]. They may have different values when the screen
 // wasn't (re)allocated yet after setting Rows or Columns (e.g., when starting
 // up).
@@ -129,6 +129,9 @@ typedef off_t off_T;
 // held down based on the MOD_MASK_* symbols that are read first.
 EXTERN int mod_mask INIT(= 0);  // current key modifiers
 
+// The value of "mod_mask" and the unmodified character before calling merge_modifiers().
+EXTERN int vgetc_mod_mask INIT(= 0);
+EXTERN int vgetc_char INIT(= 0);
 
 // Cmdline_row is the row where the command line starts, just below the
 // last window.
@@ -250,7 +253,7 @@ EXTERN int lines_left INIT(= -1);           // lines left for listing
 EXTERN int msg_no_more INIT(= false);       // don't use more prompt, truncate
                                             // messages
 
-EXTERN char_u *sourcing_name INIT(= NULL);  // name of error message source
+EXTERN char *sourcing_name INIT(= NULL);    // name of error message source
 EXTERN linenr_T sourcing_lnum INIT(= 0);    // line number of the source file
 
 EXTERN int ex_nesting_level INIT(= 0);          // nesting level
@@ -351,7 +354,7 @@ EXTERN bool did_source_packages INIT(= false);
 // provider function call
 EXTERN struct caller_scope {
   sctx_T script_ctx;
-  uint8_t *sourcing_name, *autocmd_fname, *autocmd_match;
+  char *sourcing_name, *autocmd_fname, *autocmd_match;
   linenr_T sourcing_lnum;
   int autocmd_bufnr;
   void *funccalp;
@@ -418,10 +421,6 @@ EXTERN vimmenu_T *root_menu INIT(= NULL);
 // overruling of menus that the user already defined.
 EXTERN int sys_menu INIT(= false);
 
-// While redrawing the screen this flag is set.  It means the screen size
-// ('lines' and 'rows') must not be changed.
-EXTERN int updating_screen INIT(= 0);
-
 // All windows are linked in a list. firstwin points to the first entry,
 // lastwin to the last entry (can be the same as firstwin) and curwin to the
 // currently active window.
@@ -430,7 +429,7 @@ EXTERN win_T *lastwin;               // last window
 EXTERN win_T *prevwin INIT(= NULL);  // previous window
 #define ONE_WINDOW (firstwin == lastwin)
 #define FOR_ALL_FRAMES(frp, first_frame) \
-  for (frp = first_frame; frp != NULL; frp = frp->fr_next)  // NOLINT
+  for ((frp) = first_frame; (frp) != NULL; (frp) = (frp)->fr_next)  // NOLINT
 
 // When using this macro "break" only breaks out of the inner loop. Use "goto"
 // to break out of the tabpage loop.
@@ -461,7 +460,7 @@ EXTERN tabpage_T *lastused_tabpage;
 EXTERN bool redraw_tabline INIT(= false);  // need to redraw tabline
 
 // Iterates over all tabs in the tab list
-#define FOR_ALL_TABS(tp) for (tabpage_T *tp = first_tabpage; tp != NULL; tp = tp->tp_next)
+#define FOR_ALL_TABS(tp) for (tabpage_T *(tp) = first_tabpage; (tp) != NULL; (tp) = (tp)->tp_next)
 
 // All buffers are linked in a list. 'firstbuf' points to the first entry,
 // 'lastbuf' to the last entry and 'curbuf' to the currently active buffer.
@@ -477,7 +476,7 @@ EXTERN buf_T *curbuf INIT(= NULL);    // currently active buffer
 
 // Iterate through all the signs placed in a buffer
 #define FOR_ALL_SIGNS_IN_BUF(buf, sign) \
-  for (sign = buf->b_signlist; sign != NULL; sign = sign->se_next)   // NOLINT
+  for ((sign) = (buf)->b_signlist; (sign) != NULL; (sign) = (sign)->se_next)   // NOLINT
 
 
 // List of files being edited (global argument list).  curwin->w_alist points
@@ -504,6 +503,9 @@ EXTERN int v_dying INIT(= 0);
 EXTERN int stdin_isatty INIT(= true);
 // is stdout a terminal?
 EXTERN int stdout_isatty INIT(= true);
+/// filedesc set by embedder for reading first buffer like `cmd | nvim -`
+EXTERN int stdin_fd INIT(= -1);
+
 // true when doing full-screen output, otherwise only writing some messages.
 // volatile because it is used in a signal handler.
 EXTERN volatile int full_screen INIT(= false);
@@ -599,8 +601,8 @@ EXTERN pos_T Insstart;                  // This is where the latest
 // op_insert(), to detect correctly where inserting by the user started.
 EXTERN pos_T Insstart_orig;
 
-// Stuff for VREPLACE mode.
-EXTERN int orig_line_count INIT(= 0);       // Line count when "gR" started
+// Stuff for MODE_VREPLACE state.
+EXTERN linenr_T orig_line_count INIT(= 0);       // Line count when "gR" started
 EXTERN int vr_lines_changed INIT(= 0);      // #Lines changed by "gR" so far
 
 // increase around internal delete/replace
@@ -618,20 +620,20 @@ EXTERN int inhibit_delete_count INIT(= 0);
 #define DBCS_CHT       950     // taiwan
 #define DBCS_CHTU      9950    // euc-tw
 #define DBCS_2BYTE     1       // 2byte-
-#define DBCS_DEBUG     -1
+#define DBCS_DEBUG     (-1)
 
 /// Encoding used when 'fencs' is set to "default"
 EXTERN char_u *fenc_default INIT(= NULL);
 
 /// "State" is the main state of Vim.
 /// There are other variables that modify the state:
-///    Visual_mode:    When State is NORMAL or INSERT.
-///    finish_op  :    When State is NORMAL, after typing the operator and
+///    Visual_mode:    When State is MODE_NORMAL or MODE_INSERT.
+///    finish_op  :    When State is MODE_NORMAL, after typing the operator and
 ///                    before typing the motion command.
 ///    motion_force:   Last motion_force from do_pending_operator()
 ///    debug_mode:     Debug mode
-EXTERN int State INIT(= NORMAL);        // This is the current state of the
-                                        // command interpreter.
+EXTERN int State INIT(= MODE_NORMAL);
+
 EXTERN bool debug_mode INIT(= false);
 EXTERN bool finish_op INIT(= false);    // true while an operator is pending
 EXTERN long opcount INIT(= 0);          // count for pending operator
@@ -643,10 +645,13 @@ EXTERN bool ex_no_reprint INIT(=false);   // No need to print after z or p.
 
 EXTERN int reg_recording INIT(= 0);     // register for recording  or zero
 EXTERN int reg_executing INIT(= 0);     // register being executed or zero
+// Flag set when peeking a character and found the end of executed register
+EXTERN bool pending_end_reg_executing INIT(= false);
 EXTERN int reg_recorded INIT(= 0);      // last recorded register or zero
 
 EXTERN int no_mapping INIT(= false);    // currently no mapping allowed
 EXTERN int no_zero_mapping INIT(= 0);   // mapping zero not allowed
+EXTERN int allow_keys INIT(= false);    // allow key codes when no_mapping is set
 EXTERN int no_u_sync INIT(= 0);         // Don't call u_sync()
 EXTERN int u_sync_once INIT(= 0);       // Call u_sync() once when evaluating
                                         // an expression.
@@ -664,6 +669,7 @@ EXTERN bool ins_at_eol INIT(= false);   // put cursor after eol when
 EXTERN bool no_abbr INIT(= true);       // true when no abbreviations loaded
 
 EXTERN int mapped_ctrl_c INIT(= 0);  // Modes where CTRL-C is mapped.
+EXTERN bool ctrl_c_interrupts INIT(= true);  // CTRL-C sets got_int
 
 EXTERN cmdmod_T cmdmod;                 // Ex command modifiers
 
@@ -678,11 +684,8 @@ EXTERN bool cmd_silent INIT(= false);    // don't echo the command line
 #define SEA_QUIT        2       // quit editing the file
 #define SEA_RECOVER     3       // recover the file
 
-EXTERN int swap_exists_action INIT(= SEA_NONE);
-// For dialog when swap file already
-// exists.
-EXTERN bool swap_exists_did_quit INIT(= false);
-// Selected "quit" at the dialog.
+EXTERN int swap_exists_action INIT(= SEA_NONE);  ///< For dialog when swap file already exists.
+EXTERN bool swap_exists_did_quit INIT(= false);  ///< Selected "quit" at the dialog.
 
 EXTERN char_u IObuff[IOSIZE];               ///< Buffer for sprintf, I/O, etc.
 EXTERN char_u NameBuff[MAXPATHL];           ///< Buffer for expanding file names
@@ -735,22 +738,22 @@ EXTERN reg_extmatch_T *re_extmatch_in INIT(= NULL);
 // Set by vim_regexec() to store \z\(...\) matches
 EXTERN reg_extmatch_T *re_extmatch_out INIT(= NULL);
 
-EXTERN bool did_outofmem_msg INIT(= false);
-// set after out of memory msg
-EXTERN bool did_swapwrite_msg INIT(= false);
-// set after swap write error msg
-EXTERN int global_busy INIT(= 0);           // set when :global is executing
-EXTERN bool listcmd_busy INIT(= false);     // set when :argdo, :windo or
-                                            // :bufdo is executing
-EXTERN bool need_start_insertmode INIT(= false);
-// start insert mode soon
-EXTERN char *last_mode INIT(= NULL);
+EXTERN bool did_outofmem_msg INIT(= false);  ///< set after out of memory msg
+EXTERN bool did_swapwrite_msg INIT(= false);  ///< set after swap write error msg
+EXTERN int global_busy INIT(= 0);           ///< set when :global is executing
+EXTERN bool listcmd_busy INIT(= false);     ///< set when :argdo, :windo or :bufdo is executing
+EXTERN bool need_start_insertmode INIT(= false);  ///< start insert mode soon
+
+#define MODE_MAX_LENGTH 4       // max mode length returned in get_mode(),
+                                // including the terminating NUL
+
+EXTERN char last_mode[MODE_MAX_LENGTH] INIT(= "n");
 EXTERN char_u *last_cmdline INIT(= NULL);      // last command line (for ":)
 EXTERN char_u *repeat_cmdline INIT(= NULL);    // command line for "."
 EXTERN char_u *new_last_cmdline INIT(= NULL);  // new value for last_cmdline
-EXTERN char_u *autocmd_fname INIT(= NULL);     // fname for <afile> on cmdline
+EXTERN char *autocmd_fname INIT(= NULL);       // fname for <afile> on cmdline
 EXTERN int autocmd_bufnr INIT(= 0);            // fnum for <abuf> on cmdline
-EXTERN char_u *autocmd_match INIT(= NULL);     // name for <amatch> on cmdline
+EXTERN char *autocmd_match INIT(= NULL);       // name for <amatch> on cmdline
 EXTERN bool did_cursorhold INIT(= false);      // set when CursorHold t'gerd
 
 EXTERN int postponed_split INIT(= 0);        // for CTRL-W CTRL-] command
@@ -764,8 +767,7 @@ EXTERN bool g_tag_at_cursor INIT(= false);  // whether the tag command comes
 
 EXTERN int replace_offset INIT(= 0);        // offset for replace_push()
 
-EXTERN char_u *escape_chars INIT(= (char_u *)" \t\\\"|");
-// need backslash in cmd line
+EXTERN char_u *escape_chars INIT(= (char_u *)" \t\\\"|");  // need backslash in cmd line
 
 EXTERN int keep_help_flag INIT(= false);  // doing :ta from help file
 
@@ -805,7 +807,7 @@ extern char_u *compiled_sys;
 // When a window has a local directory, the absolute path of the global
 // current directory is stored here (in allocated memory).  If the current
 // directory is not a local directory, globaldir is NULL.
-EXTERN char_u *globaldir INIT(= NULL);
+EXTERN char *globaldir INIT(= NULL);
 
 EXTERN char *last_chdir_reason INIT(= NULL);
 
@@ -844,7 +846,6 @@ EXTERN linenr_T printer_page_num;
 EXTERN bool typebuf_was_filled INIT(= false);     // received text from client
                                                   // or from feedkeys()
 
-
 #ifdef BACKSLASH_IN_FILENAME
 EXTERN char psepc INIT(= '\\');            // normal path separator character
 EXTERN char psepcN INIT(= '/');            // abnormal path separator character
@@ -872,7 +873,8 @@ EXTERN char e_api_spawn_failed[] INIT(= N_("E903: Could not spawn API job"));
 EXTERN char e_argreq[] INIT(= N_("E471: Argument required"));
 EXTERN char e_backslash[] INIT(= N_("E10: \\ should be followed by /, ? or &"));
 EXTERN char e_cmdwin[] INIT(= N_("E11: Invalid in command-line window; <CR> executes, CTRL-C quits"));
-EXTERN char e_curdir[] INIT(= N_( "E12: Command not allowed from exrc/vimrc in current dir or tag search"));
+EXTERN char e_curdir[] INIT(= N_("E12: Command not allowed from exrc/vimrc in current dir or tag search"));
+EXTERN char e_command_too_recursive[] INIT(= N_("E169: Command too recursive"));
 EXTERN char e_endif[] INIT(= N_("E171: Missing :endif"));
 EXTERN char e_endtry[] INIT(= N_("E600: Missing :endtry"));
 EXTERN char e_endwhile[] INIT(= N_("E170: Missing :endwhile"));
@@ -992,11 +994,12 @@ EXTERN char e_listarg[] INIT(= N_("E686: Argument of %s must be a List"));
 EXTERN char e_unsupportedoption[] INIT(= N_("E519: Option not supported"));
 EXTERN char e_fnametoolong[] INIT(= N_("E856: Filename too long"));
 EXTERN char e_float_as_string[] INIT(= N_("E806: using Float as a String"));
+EXTERN char e_cannot_edit_other_buf[] INIT(= N_("E788: Not allowed to edit another buffer now"));
 
 EXTERN char e_autocmd_err[] INIT(= N_("E5500: autocmd has thrown an exception: %s"));
 EXTERN char e_cmdmap_err[] INIT(= N_("E5520: <Cmd> mapping must end with <CR>"));
-EXTERN char e_cmdmap_repeated[] INIT(= N_("E5521: <Cmd> mapping must end with <CR> before second <Cmd>"));
-EXTERN char e_cmdmap_key[] INIT(= N_("E5522: <Cmd> mapping must not include %s key"));
+EXTERN char e_cmdmap_repeated[]
+INIT(= N_("E5521: <Cmd> mapping must end with <CR> before second <Cmd>"));
 
 EXTERN char e_api_error[] INIT(= N_("E5555: API call: %s"));
 
@@ -1014,6 +1017,9 @@ EXTERN char e_resulting_text_too_long[] INIT(= N_("E1240: Resulting text too lon
 EXTERN char e_line_number_out_of_range[] INIT(= N_("E1247: Line number out of range"));
 
 EXTERN char e_highlight_group_name_too_long[] INIT(= N_("E1249: Highlight group name too long"));
+
+EXTERN char e_undobang_cannot_redo_or_move_branch[]
+INIT(= N_("E5767: Cannot use :undo! to redo or move to a different undo branch"));
 
 EXTERN char top_bot_msg[] INIT(= N_("search hit TOP, continuing at BOTTOM"));
 EXTERN char bot_top_msg[] INIT(= N_("search hit BOTTOM, continuing at TOP"));

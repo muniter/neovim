@@ -4,8 +4,9 @@
 // highlight_group.c: code for managing highlight groups
 
 #include <stdbool.h>
-#include "nvim/autocmd.h"
+
 #include "nvim/api/private/helpers.h"
+#include "nvim/autocmd.h"
 #include "nvim/charset.h"
 #include "nvim/cursor_shape.h"
 #include "nvim/fold.h"
@@ -34,11 +35,11 @@ Map(cstr_t, int) highlight_unames = MAP_INIT;
 /// The "term", "cterm" and "gui" arguments can be any combination of the
 /// following names, separated by commas (but no spaces!).
 static char *(hl_name_table[]) =
-  { "bold", "standout", "underline", "underlineline", "undercurl", "underdot",
-    "underdash", "italic", "reverse", "inverse", "strikethrough", "nocombine", "NONE" };
+{ "bold", "standout", "underline", "underlineline", "undercurl", "underdot",
+  "underdash", "italic", "reverse", "inverse", "strikethrough", "nocombine", "NONE" };
 static int hl_attr_table[] =
-  { HL_BOLD, HL_STANDOUT, HL_UNDERLINE, HL_UNDERLINELINE, HL_UNDERCURL, HL_UNDERDOT, HL_UNDERDASH,
-    HL_ITALIC, HL_INVERSE, HL_INVERSE, HL_STRIKETHROUGH, HL_NOCOMBINE, 0 };
+{ HL_BOLD, HL_STANDOUT, HL_UNDERLINE, HL_UNDERLINELINE, HL_UNDERCURL, HL_UNDERDOT, HL_UNDERDASH,
+  HL_ITALIC, HL_INVERSE, HL_INVERSE, HL_STRIKETHROUGH, HL_NOCOMBINE, 0 };
 
 /// Structure that stores information about a highlight group.
 /// The ID of a highlight group is also called group ID.  It is the index in
@@ -102,9 +103,11 @@ static const char *highlight_init_both[] = {
   "TabLineFill  cterm=reverse gui=reverse",
   "TabLineSel   cterm=bold gui=bold",
   "TermCursor   cterm=reverse gui=reverse",
-  "VertSplit    cterm=reverse gui=reverse",
+  "WinBar       cterm=bold gui=bold",
   "WildMenu     ctermbg=Yellow ctermfg=Black guibg=Yellow guifg=Black",
+  "default link VertSplit Normal",
   "default link WinSeparator VertSplit",
+  "default link WinBarNC WinBar",
   "default link EndOfBuffer NonText",
   "default link LineNrAbove LineNr",
   "default link LineNrBelow LineNr",
@@ -446,7 +449,7 @@ const char *const highlight_init_cmdline[] = {
 
   "default link NvimInvalidSpacing ErrorMsg",
 
-  // Not actually invalid, but we highlight user that he is doing something
+  // Not actually invalid, but we show the user that they are doing something
   // wrong.
   "default link NvimDoubleQuotedUnknownEscape NvimInvalidValue",
   NULL,
@@ -559,7 +562,7 @@ int load_colors(char_u *name)
   recursive = true;
   size_t buflen = STRLEN(name) + 12;
   buf = xmalloc(buflen);
-  apply_autocmds(EVENT_COLORSCHEMEPRE, name, curbuf->b_fname, false, curbuf);
+  apply_autocmds(EVENT_COLORSCHEMEPRE, (char *)name, curbuf->b_fname, false, curbuf);
   snprintf((char *)buf, buflen, "colors/%s.vim", name);
   retval = source_runtime((char *)buf, DIP_START + DIP_OPT);
   if (retval == FAIL) {
@@ -567,7 +570,7 @@ int load_colors(char_u *name)
     retval = source_runtime((char *)buf, DIP_START + DIP_OPT);
   }
   xfree(buf);
-  apply_autocmds(EVENT_COLORSCHEME, name, curbuf->b_fname, false, curbuf);
+  apply_autocmds(EVENT_COLORSCHEME, (char *)name, curbuf->b_fname, false, curbuf);
 
   recursive = false;
 
@@ -618,10 +621,10 @@ static int color_numbers_256[28] = { 0, 4, 2, 6,
 static int color_numbers_8[28] = { 0, 4, 2, 6,
                                    1, 5, 3, 3,
                                    7, 7, 7, 7,
-                                   0+8, 0+8,
-                                   4+8, 4+8, 2+8, 2+8,
-                                   6+8, 6+8, 1+8, 1+8, 5+8,
-                                   5+8, 3+8, 3+8, 7+8, -1 };
+                                   0 + 8, 0 + 8,
+                                   4 + 8, 4 + 8, 2 + 8, 2 + 8,
+                                   6 + 8, 6 + 8, 1 + 8, 1 + 8, 5 + 8,
+                                   5 + 8, 3 + 8, 3 + 8, 7 + 8, -1 };
 
 // Lookup the "cterm" value to be used for color with index "idx" in
 // color_names[].
@@ -795,14 +798,14 @@ void do_highlight(const char *line, const bool forceit, const bool init)
 
   // Isolate the name.
   name_end = (const char *)skiptowhite((const char_u *)line);
-  linep = (const char *)skipwhite((const char_u *)name_end);
+  linep = (const char *)skipwhite(name_end);
 
   // Check for "default" argument.
   if (strncmp(line, "default", (size_t)(name_end - line)) == 0) {
     dodefault = true;
     line = linep;
     name_end = (const char *)skiptowhite((const char_u *)line);
-    linep = (const char *)skipwhite((const char_u *)name_end);
+    linep = (const char *)skipwhite(name_end);
   }
 
   // Check for "clear" or "link" argument.
@@ -834,7 +837,7 @@ void do_highlight(const char *line, const bool forceit, const bool init)
     HlGroup *hlgroup = NULL;
 
     from_end = (const char *)skiptowhite((const char_u *)from_start);
-    to_start = (const char *)skipwhite((const char_u *)from_end);
+    to_start = (const char *)skipwhite(from_end);
     to_end   = (const char *)skiptowhite((const char_u *)to_start);
 
     if (ends_excmd((uint8_t)(*from_start))
@@ -844,7 +847,7 @@ void do_highlight(const char *line, const bool forceit, const bool init)
       return;
     }
 
-    if (!ends_excmd(*skipwhite((const char_u *)to_end))) {
+    if (!ends_excmd(*skipwhite(to_end))) {
       semsg(_("E413: Too many arguments: \":highlight link %s\""), from_start);
       return;
     }
@@ -912,7 +915,7 @@ void do_highlight(const char *line, const bool forceit, const bool init)
       return;
     }
     name_end = (const char *)skiptowhite((const char_u *)line);
-    linep = (const char *)skipwhite((const char_u *)name_end);
+    linep = (const char *)skipwhite(name_end);
   }
 
   // Find the group name in the table.  If it does not exist yet, add it.
@@ -958,12 +961,12 @@ void do_highlight(const char *line, const bool forceit, const bool init)
       xfree(key);
       key = (char *)vim_strnsave_up((const char_u *)key_start,
                                     (size_t)(linep - key_start));
-      linep = (const char *)skipwhite((const char_u *)linep);
+      linep = (const char *)skipwhite(linep);
 
       if (strcmp(key, "NONE") == 0) {
         if (!init || HL_TABLE()[idx].sg_set == 0) {
           if (!init) {
-            HL_TABLE()[idx].sg_set |= SG_CTERM+SG_GUI;
+            HL_TABLE()[idx].sg_set |= SG_CTERM + SG_GUI;
           }
           highlight_clear(idx);
         }
@@ -979,7 +982,7 @@ void do_highlight(const char *line, const bool forceit, const bool init)
       linep++;
 
       // Isolate the argument.
-      linep = (const char *)skipwhite((const char_u *)linep);
+      linep = (const char *)skipwhite(linep);
       if (*linep == '\'') {  // guifg='color name'
         arg_start = ++linep;
         linep = strchr(linep, '\'');
@@ -1237,7 +1240,7 @@ void do_highlight(const char *line, const bool forceit, const bool init)
       }
 
       // Continue with next argument.
-      linep = (const char *)skipwhite((const char_u *)linep);
+      linep = (const char *)skipwhite(linep);
     }
   }
 
@@ -1384,7 +1387,7 @@ static void highlight_list_one(const int id)
                             0, sgp->sg_rgb_sp_name, "guisp");
 
   didh = highlight_list_arg(id, didh, LIST_INT,
-                            sgp->sg_blend+1, NULL, "blend");
+                            sgp->sg_blend + 1, NULL, "blend");
 
   if (sgp->sg_link && !got_int) {
     (void)syn_list_header(didh, 0, id, true);
@@ -1452,8 +1455,7 @@ static bool highlight_list_arg(const int id, bool didh, const int type, int iarg
       }
     }
 
-    (void)syn_list_header(didh, (int)(vim_strsize((char_u *)ts) + (int)STRLEN(name)
-                                      + 1), id, false);
+    (void)syn_list_header(didh, vim_strsize((char_u *)ts) + (int)STRLEN(name) + 1, id, false);
     didh = true;
     if (!got_int) {
       if (*name != NUL) {
@@ -1572,8 +1574,7 @@ const char *highlight_color(const int id, const char *const what, const int mode
 /// @param id highlight group id
 /// @param force_newline always start a new line
 /// @return true when started a new line.
-bool syn_list_header(const bool did_header, const int outlen, const int id,
-                     bool force_newline)
+bool syn_list_header(const bool did_header, const int outlen, const int id, bool force_newline)
 {
   int endcol = 19;
   bool newline = true;
@@ -1643,10 +1644,10 @@ static void set_hl_attr(int idx)
   at_en.rgb_sp_color = sgp->sg_rgb_sp_name ? sgp->sg_rgb_sp : -1;
   at_en.hl_blend = sgp->sg_blend;
 
-  sgp->sg_attr = hl_get_syn_attr(0, idx+1, at_en);
+  sgp->sg_attr = hl_get_syn_attr(0, idx + 1, at_en);
 
   // a cursor style uses this syn_id, make sure its attribute is updated.
-  if (cursor_mode_uses_syn_id(idx+1)) {
+  if (cursor_mode_uses_syn_id(idx + 1)) {
     ui_mode_info_set();
   }
 }
@@ -1927,7 +1928,7 @@ void highlight_changed(void)
     }
 
     highlight_attr[hlf] = hl_get_ui_attr(hlf, final_id,
-                                         hlf == HLF_INACTIVE);
+                                         (hlf == HLF_INACTIVE || hlf == HLF_LC));
 
     if (highlight_attr[hlf] != highlight_attr_last[hlf]) {
       if (hlf == HLF_MSG) {
@@ -1973,7 +1974,7 @@ void set_context_in_highlight_cmd(expand_T *xp, const char *arg)
 {
   // Default: expand group names.
   xp->xp_context = EXPAND_HIGHLIGHT;
-  xp->xp_pattern = (char_u *)arg;
+  xp->xp_pattern = (char *)arg;
   include_link = 2;
   include_default = 1;
 
@@ -1983,8 +1984,8 @@ void set_context_in_highlight_cmd(expand_T *xp, const char *arg)
     if (*p != NUL) {  // Past "default" or group name.
       include_default = 0;
       if (strncmp("default", arg, (unsigned)(p - arg)) == 0) {
-        arg = (const char *)skipwhite((const char_u *)p);
-        xp->xp_pattern = (char_u *)arg;
+        arg = (const char *)skipwhite(p);
+        xp->xp_pattern = (char *)arg;
         p = (const char *)skiptowhite((const char_u *)arg);
       }
       if (*p != NUL) {                          // past group name
@@ -1994,11 +1995,11 @@ void set_context_in_highlight_cmd(expand_T *xp, const char *arg)
         }
         if (strncmp("link", arg, (unsigned)(p - arg)) == 0
             || strncmp("clear", arg, (unsigned)(p - arg)) == 0) {
-          xp->xp_pattern = skipwhite((const char_u *)p);
-          p = (const char *)skiptowhite(xp->xp_pattern);
+          xp->xp_pattern = skipwhite(p);
+          p = (const char *)skiptowhite((char_u *)xp->xp_pattern);
           if (*p != NUL) {  // Past first group name.
-            xp->xp_pattern = skipwhite((const char_u *)p);
-            p = (const char *)skiptowhite(xp->xp_pattern);
+            xp->xp_pattern = skipwhite(p);
+            p = (const char *)skiptowhite((char_u *)xp->xp_pattern);
           }
         }
         if (*p != NUL) {  // Past group name(s).
@@ -2787,7 +2788,7 @@ int name_to_ctermcolor(const char *name)
   int off = TOUPPER_ASC(*name);
   for (i = ARRAY_SIZE(color_names); --i >= 0;) {
     if (off == color_names[i][0]
-        && STRICMP(name+1, color_names[i]+1) == 0) {
+        && STRICMP(name + 1, color_names[i] + 1) == 0) {
       break;
     }
   }

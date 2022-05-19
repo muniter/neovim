@@ -17,7 +17,7 @@ centralized reference of the differences.
 
 - Use `$XDG_CONFIG_HOME/nvim/init.vim` instead of `.vimrc` for your |config|.
 - Use `$XDG_CONFIG_HOME/nvim` instead of `.vim` to store configuration files.
-- Use `$XDG_DATA_HOME/nvim/shada/main.shada` instead of `.viminfo` for persistent
+- Use `$XDG_STATE_HOME/nvim/shada/main.shada` instead of `.viminfo` for persistent
   session information.  |shada|
 
 ==============================================================================
@@ -32,12 +32,12 @@ centralized reference of the differences.
 - 'autoread' is enabled
 - 'background' defaults to "dark" (unless set automatically by the terminal/UI)
 - 'backspace' defaults to "indent,eol,start"
-- 'backupdir' defaults to .,~/.local/share/nvim/backup// (|xdg|), auto-created
+- 'backupdir' defaults to .,~/.local/state/nvim/backup// (|xdg|), auto-created
 - 'belloff' defaults to "all"
 - 'compatible' is always disabled
 - 'complete' excludes "i"
 - 'cscopeverbose' is enabled
-- 'directory' defaults to ~/.local/share/nvim/swap// (|xdg|), auto-created
+- 'directory' defaults to ~/.local/state/nvim/swap// (|xdg|), auto-created
 - 'display' defaults to "lastline,msgsep"
 - 'encoding' is UTF-8 (cf. 'fileencoding' for file-content encoding)
 - 'fillchars' defaults (in effect) to "vert:│,fold:·,sep:│"
@@ -65,7 +65,7 @@ centralized reference of the differences.
 - 'tags' defaults to "./tags;,tags"
 - 'ttimeoutlen' defaults to 50
 - 'ttyfast' is always set
-- 'undodir' defaults to ~/.local/share/nvim/undo// (|xdg|), auto-created
+- 'undodir' defaults to ~/.local/state/nvim/undo// (|xdg|), auto-created
 - 'viewoptions' includes "unix,slash", excludes "options"
 - 'viminfo' includes "!"
 - 'wildmenu' is enabled
@@ -87,6 +87,8 @@ of these in your config by simply removing the mapping, e.g. ":unmap Y".
 	nnoremap <C-L> <Cmd>nohlsearch<Bar>diffupdate<Bar>normal! <C-L><CR>
 	inoremap <C-U> <C-G>u<C-U>
 	inoremap <C-W> <C-G>u<C-W>
+	xnoremap * y/\V<C-R>"<CR>
+	xnoremap # y?\V<C-R>"<CR>
 <
 Default Autocommands ~
 							*default-autocmds*
@@ -180,6 +182,7 @@ Commands:
   |:Man| is available by default, with many improvements such as completion
   |:sign-define| accepts a `numhl` argument, to highlight the line number
   |:match| can be invoked before highlight group is defined
+  |:source| works with Lua and anonymous (no file) scripts
 
 Events:
   |RecordingEnter|
@@ -350,8 +353,10 @@ Functions:
 Highlight groups:
   |hl-ColorColumn|, |hl-CursorColumn| are lower priority than most other
   groups
+  |hl-CurSearch| highlights match under cursor instead of last match found
+  using |n| or |N|
   |hl-CursorLine| is low-priority unless foreground color is set
-  *hl-VertSplit* superseded by |hl-WinSeparator|
+  |hl-VertSplit| superseded by |hl-WinSeparator|
 
 Macro/|recording| behavior
   Replay of a macro recorded during :lmap produces the same actions as when it
@@ -361,6 +366,10 @@ Macro/|recording| behavior
   'keymap' is implemented via :lmap instead of :lnoremap so that you can use
   macros and 'keymap' at the same time. This also means you can use |:imap| on
   the results of keys from 'keymap'.
+
+Mappings:
+  Creating a mapping for a simplifiable key (e.g. <C-I>) doesn't replace an
+  existing mapping for its simplified form (e.g. <Tab>).
 
 Motion:
   The |jumplist| avoids useless/phantom jumps.
@@ -372,6 +381,7 @@ Normal commands:
 Options:
   'ttimeout', 'ttimeoutlen' behavior was simplified
   |jumpoptions| "stack" behavior
+  'shortmess' the "F" flag does not affect output from autocommands
 
 Shell:
   Shell output (|:!|, |:make|, …) is always routed through the UI, so it
@@ -538,11 +548,13 @@ Options:
   'maxmemtot' Nvim delegates memory-management to the OS.
   'maxcombine' (6 is always used)
   *'prompt'* *'noprompt'*
+  *'remap'* *'noremap'*
   *'restorescreen'* *'rs'* *'norestorescreen'* *'nors'*
   'shelltype'
   *'shortname'* *'sn'* *'noshortname'* *'nosn'*
   *'swapsync'* *'sws'*
   *'termencoding'* *'tenc'* (Vim 7.4.852 also removed this for Windows)
+  *'terse'* *'noterse'* (Add "s" to 'shortmess' instead)
   'textauto'
   'textmode'
   *'toolbar'* *'tb'*

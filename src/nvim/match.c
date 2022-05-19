@@ -4,6 +4,8 @@
 // match.c: functions for highlighting matches
 
 #include <stdbool.h>
+
+#include "nvim/buffer_defs.h"
 #include "nvim/charset.h"
 #include "nvim/fold.h"
 #include "nvim/highlight_group.h"
@@ -63,7 +65,7 @@ static int match_add(win_T *wp, const char *const grp, const char *const pat, in
   if ((hlg_id = syn_check_group(grp, strlen(grp))) == 0) {
     return -1;
   }
-  if (pat != NULL && (regprog = vim_regcomp((char_u *)pat, RE_MAGIC)) == NULL) {
+  if (pat != NULL && (regprog = vim_regcomp((char *)pat, RE_MAGIC)) == NULL) {
     semsg(_(e_invarg2), pat);
     return -1;
   }
@@ -91,7 +93,7 @@ static int match_add(win_T *wp, const char *const grp, const char *const pat, in
   m->match.rmm_maxcol = 0;
   m->conceal_char = 0;
   if (conceal_char != NULL) {
-    m->conceal_char = utf_ptr2char((const char_u *)conceal_char);
+    m->conceal_char = utf_ptr2char(conceal_char);
   }
 
   // Set up position matches
@@ -372,6 +374,7 @@ static int next_search_hl_pos(match_T *shl, linenr_T lnum, posmatch_T *posmatch,
     shl->rm.endpos[0].lnum = 0;
     shl->rm.endpos[0].col = end;
     shl->is_addpos = true;
+    shl->has_cursor = false;
     posmatch->cur = found + 1;
     return 1;
   }
@@ -444,7 +447,7 @@ static void next_search_hl(win_T *win, match_T *search_hl, match_T *shl, linenr_
         shl->lnum = 0;
         break;
       }
-      matchcol += utfc_ptr2len(ml);
+      matchcol += utfc_ptr2len((char *)ml);
     } else {
       matchcol = shl->rm.endpos[0].col;
     }
@@ -502,9 +505,9 @@ void prepare_search_hl(win_T *wp, match_T *search_hl, linenr_T lnum)
   FUNC_ATTR_NONNULL_ALL
 {
   matchitem_T *cur;       // points to the match list
-  match_T     *shl;       // points to search_hl or a match
-  bool         shl_flag;  // flag to indicate whether search_hl
-                          // has been processed or not
+  match_T *shl;       // points to search_hl or a match
+  bool shl_flag;  // flag to indicate whether search_hl
+                  // has been processed or not
 
   // When using a multi-line pattern, start searching at the top
   // of the window or just after a closed fold.
@@ -558,6 +561,22 @@ void prepare_search_hl(win_T *wp, match_T *search_hl, linenr_T lnum)
   }
 }
 
+/// Update "shl->has_cursor" based on the match in "shl" and the cursor
+/// position.
+static void check_cur_search_hl(win_T *wp, match_T *shl)
+{
+  linenr_T linecount = shl->rm.endpos[0].lnum - shl->rm.startpos[0].lnum;
+
+  if (wp->w_cursor.lnum >= shl->lnum
+      && wp->w_cursor.lnum <= shl->lnum + linecount
+      && (wp->w_cursor.lnum > shl->lnum || wp->w_cursor.col >= shl->rm.startpos[0].col)
+      && (wp->w_cursor.lnum < shl->lnum + linecount || wp->w_cursor.col < shl->rm.endpos[0].col)) {
+    shl->has_cursor = true;
+  } else {
+    shl->has_cursor = false;
+  }
+}
+
 /// Prepare for 'hlsearch' and match highlighting in one window line.
 /// Return true if there is such highlighting and set "search_attr" to the
 /// current highlight attribute.
@@ -565,10 +584,10 @@ bool prepare_search_hl_line(win_T *wp, linenr_T lnum, colnr_T mincol, char_u **l
                             match_T *search_hl, int *search_attr, bool *search_attr_from_match)
 {
   matchitem_T *cur = wp->w_match_head;  // points to the match list
-  match_T     *shl;                     // points to search_hl or a match
-  bool         shl_flag = false;        // flag to indicate whether search_hl
-                                        // has been processed or not
-  bool         area_highlighting = false;
+  match_T *shl;                     // points to search_hl or a match
+  bool shl_flag = false;        // flag to indicate whether search_hl
+                                // has been processed or not
+  bool area_highlighting = false;
 
   // Handle highlighting the last used search pattern and matches.
   // Do this for both search_hl and the match list.
@@ -583,6 +602,7 @@ bool prepare_search_hl_line(win_T *wp, linenr_T lnum, colnr_T mincol, char_u **l
     shl->endcol = MAXCOL;
     shl->attr_cur = 0;
     shl->is_addpos = false;
+    shl->has_cursor = false;
     if (cur != NULL) {
       cur->pos.cur = 0;
     }
@@ -605,10 +625,16 @@ bool prepare_search_hl_line(win_T *wp, linenr_T lnum, colnr_T mincol, char_u **l
       } else {
         shl->endcol = MAXCOL;
       }
+
+      // check if the cursor is in the match before changing the columns
+      if (shl == search_hl) {
+        check_cur_search_hl(wp, shl);
+      }
+
       // Highlight one character for an empty match.
       if (shl->startcol == shl->endcol) {
         if ((*line)[shl->endcol] != NUL) {
-          shl->endcol += utfc_ptr2len(*line + shl->endcol);
+          shl->endcol += utfc_ptr2len((char *)(*line) + shl->endcol);
         } else {
           shl->endcol++;
         }
@@ -638,10 +664,10 @@ int update_search_hl(win_T *wp, linenr_T lnum, colnr_T col, char_u **line, match
                      bool *search_attr_from_match)
 {
   matchitem_T *cur = wp->w_match_head;  // points to the match list
-  match_T     *shl;                     // points to search_hl or a match
-  bool         shl_flag = false;        // flag to indicate whether search_hl
-                                        // has been processed or not
-  int          search_attr = 0;
+  match_T *shl;                     // points to search_hl or a match
+  bool shl_flag = false;        // flag to indicate whether search_hl
+                                // has been processed or not
+  int search_attr = 0;
 
   // Do this for 'search_hl' and the match list (ordered by priority).
   while (cur != NULL || !shl_flag) {
@@ -662,12 +688,18 @@ int update_search_hl(win_T *wp, linenr_T lnum, colnr_T col, char_u **line, match
       if (shl->startcol != MAXCOL
           && col >= shl->startcol
           && col < shl->endcol) {
-        int next_col = col + utfc_ptr2len(*line + col);
+        int next_col = col + utfc_ptr2len((char *)(*line) + col);
 
         if (shl->endcol < next_col) {
           shl->endcol = next_col;
         }
-        shl->attr_cur = shl->attr;
+        // Highlight the match were the cursor is using the CurSearch
+        // group.
+        if (shl == search_hl && shl->has_cursor && (HL_ATTR(HLF_LC) || wp->w_hl_ids[HLF_LC])) {
+          shl->attr_cur = win_hl_attr(wp, HLF_LC) ? win_hl_attr(wp, HLF_LC) : HL_ATTR(HLF_LC);
+        } else {
+          shl->attr_cur = shl->attr;
+        }
         // Match with the "Conceal" group results in hiding
         // the match.
         if (cur != NULL
@@ -697,9 +729,14 @@ int update_search_hl(win_T *wp, linenr_T lnum, colnr_T col, char_u **line, match
             shl->endcol = MAXCOL;
           }
 
+          // check if the cursor is in the match
+          if (shl == search_hl) {
+            check_cur_search_hl(wp, shl);
+          }
+
           if (shl->startcol == shl->endcol) {
             // highlight empty match, try again after it
-            shl->endcol += utfc_ptr2len(*line + shl->endcol);
+            shl->endcol += utfc_ptr2len((char *)(*line) + shl->endcol);
           }
 
           // Loop to check if the match starts at the
@@ -745,7 +782,7 @@ int update_search_hl(win_T *wp, linenr_T lnum, colnr_T col, char_u **line, match
 
 bool get_prevcol_hl_flag(win_T *wp, match_T *search_hl, long curcol)
 {
-  long         prevcol = curcol;
+  long prevcol = curcol;
   matchitem_T *cur;                      // points to the match list
 
   // we're not really at that column when skipping some text
@@ -772,9 +809,9 @@ bool get_prevcol_hl_flag(win_T *wp, match_T *search_hl, long curcol)
 void get_search_match_hl(win_T *wp, match_T *search_hl, long col, int *char_attr)
 {
   matchitem_T *cur = wp->w_match_head;  // points to the match list
-  match_T     *shl;                     // points to search_hl or a match
-  bool         shl_flag = false;        // flag to indicate whether search_hl
-                                        // has been processed or not
+  match_T *shl;                     // points to search_hl or a match
+  bool shl_flag = false;        // flag to indicate whether search_hl
+                                // has been processed or not
 
   *char_attr = search_hl->attr;
   while (cur != NULL || !shl_flag) {
@@ -875,7 +912,7 @@ void f_getmatches(typval_T *argvars, typval_T *rettv, FunPtr fptr)
     if (cur->conceal_char) {
       char buf[MB_MAXBYTES + 1];
 
-      buf[utf_char2bytes(cur->conceal_char, (char_u *)buf)] = NUL;
+      buf[utf_char2bytes(cur->conceal_char, buf)] = NUL;
       tv_dict_add_str(dict, S_LEN("conceal"), buf);
     }
 
@@ -1139,16 +1176,16 @@ void ex_match(exarg_T *eap)
   }
 
   if (ends_excmd(*eap->arg)) {
-    end = eap->arg;
+    end = (char_u *)eap->arg;
   } else if ((STRNICMP(eap->arg, "none", 4) == 0
               && (ascii_iswhite(eap->arg[4]) || ends_excmd(eap->arg[4])))) {
-    end = eap->arg + 4;
+    end = (char_u *)eap->arg + 4;
   } else {
-    p = skiptowhite(eap->arg);
+    p = skiptowhite((char_u *)eap->arg);
     if (!eap->skip) {
-      g = vim_strnsave(eap->arg, (size_t)(p - eap->arg));
+      g = vim_strnsave((char_u *)eap->arg, (size_t)(p - (char_u *)eap->arg));
     }
-    p = skipwhite(p);
+    p = (char_u *)skipwhite((char *)p);
     if (*p == NUL) {
       // There must be two arguments.
       xfree(g);
@@ -1157,7 +1194,7 @@ void ex_match(exarg_T *eap)
     }
     end = skip_regexp(p + 1, *p, true, NULL);
     if (!eap->skip) {
-      if (*end != NUL && !ends_excmd(*skipwhite(end + 1))) {
+      if (*end != NUL && !ends_excmd(*skipwhite((char *)end + 1))) {
         xfree(g);
         eap->errmsg = e_trailing;
         return;
@@ -1176,6 +1213,5 @@ void ex_match(exarg_T *eap)
       *end = (char_u)c;
     }
   }
-  eap->nextcmd = find_nextcmd(end);
+  eap->nextcmd = (char *)find_nextcmd(end);
 }
-

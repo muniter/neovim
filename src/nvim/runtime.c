@@ -35,8 +35,8 @@ void runtime_init(void)
 /// ":runtime [what] {name}"
 void ex_runtime(exarg_T *eap)
 {
-  char_u *arg = eap->arg;
-  char_u *p = skiptowhite(arg);
+  char *arg = eap->arg;
+  char *p = (char *)skiptowhite((char_u *)arg);
   ptrdiff_t len = p - arg;
   int flags = eap->forceit ? DIP_ALL : 0;
 
@@ -54,13 +54,13 @@ void ex_runtime(exarg_T *eap)
     arg = skipwhite(arg + len);
   }
 
-  source_runtime((char *)arg, flags);
+  source_runtime(arg, flags);
 }
 
 
-static void source_callback(char_u *fname, void *cookie)
+static void source_callback(char *fname, void *cookie)
 {
-  (void)do_source((char *)fname, false, DOSO_NONE);
+  (void)do_source(fname, false, DOSO_NONE);
 }
 
 /// Find the file "name" in all directories in "path" and invoke
@@ -108,7 +108,7 @@ int do_in_path(char_u *path, char *name, int flags, DoInRuntimepathCB callback, 
       }
 
       if (name == NULL) {
-        (*callback)(buf, cookie);
+        (*callback)((char *)buf, cookie);
         did_one = true;
       } else if (buflen + STRLEN(name) + 2 < MAXPATHL) {
         add_pathsep((char *)buf);
@@ -134,7 +134,7 @@ int do_in_path(char_u *path, char *name, int flags, DoInRuntimepathCB callback, 
           // Expand wildcards, invoke the callback for each match.
           if (gen_expand_wildcards(1, &buf, &num_files, &files, ew_flags) == OK) {
             for (i = 0; i < num_files; i++) {
-              (*callback)(files[i], cookie);
+              (*callback)((char *)files[i], cookie);
               did_one = true;
               if (!(flags & DIP_ALL)) {
                 break;
@@ -244,7 +244,7 @@ int do_in_cached_path(char_u *name, int flags, DoInRuntimepathCB callback, void 
     }
 
     if (name == NULL) {
-      (*callback)((char_u *)item.path, cookie);
+      (*callback)(item.path, cookie);
     } else if (buflen + STRLEN(name) + 2 < MAXPATHL) {
       STRCPY(buf, item.path);
       add_pathsep((char *)buf);
@@ -271,7 +271,7 @@ int do_in_cached_path(char_u *name, int flags, DoInRuntimepathCB callback, void 
         char_u *(pat[]) = { buf };
         if (gen_expand_wildcards(1, pat, &num_files, &files, ew_flags) == OK) {
           for (i = 0; i < num_files; i++) {
-            (*callback)(files[i], cookie);
+            (*callback)((char *)files[i], cookie);
             did_one = true;
             if (!(flags & DIP_ALL)) {
               break;
@@ -485,7 +485,7 @@ static void expand_pack_entry(RuntimeSearchPath *search_path, Map(String, handle
     STRLCPY(buf, pack_entry, sizeof buf);
     STRLCPY(buf + pack_entry_len, start_pat[i], sizeof buf - pack_entry_len);
     expand_rtp_entry(search_path, rtp_used, buf, false);
-    size_t after_size = STRLEN(buf)+7;
+    size_t after_size = STRLEN(buf) + 7;
     char *after = xmallocz(after_size);
     xstrlcpy(after, buf, after_size);
     xstrlcat(after, "/after", after_size);
@@ -499,7 +499,7 @@ static bool path_is_after(char_u *buf, size_t buflen)
   // vim8 considers all dirs like "foo/bar_after", "Xafter" etc, as an
   // "after" dir in SOME codepaths not not in ALL codepaths.
   return buflen >= 5
-         && (!(buflen >= 6) || vim_ispathsep(buf[buflen-6]))
+         && (!(buflen >= 6) || vim_ispathsep(buf[buflen - 6]))
          && STRCMP(buf + buflen - 5, "after") == 0;
 }
 
@@ -614,17 +614,17 @@ void runtime_search_path_validate(void)
 
 
 /// Just like do_in_path_and_pp(), using 'runtimepath' for "path".
-int do_in_runtimepath(char_u *name, int flags, DoInRuntimepathCB callback, void *cookie)
+int do_in_runtimepath(char *name, int flags, DoInRuntimepathCB callback, void *cookie)
 {
   int success = FAIL;
   if (!(flags & DIP_NORTP)) {
-    success |= do_in_cached_path((name && !*name) ? NULL : name, flags, callback, cookie);
+    success |= do_in_cached_path((name && !*name) ? NULL : (char_u *)name, flags, callback, cookie);
     flags = (flags & ~DIP_START) | DIP_NORTP;
   }
   // TODO(bfredl): we could integrate disabled OPT dirs into the cached path
   // which would effectivize ":packadd myoptpack" as well
   if ((flags & (DIP_START|DIP_OPT)) && (success == FAIL || (flags & DIP_ALL))) {
-    success |= do_in_path_and_pp(p_rtp, name, flags, callback, cookie);
+    success |= do_in_path_and_pp(p_rtp, (char_u *)name, flags, callback, cookie);
   }
   return success;
 }
@@ -636,7 +636,7 @@ int do_in_runtimepath(char_u *name, int flags, DoInRuntimepathCB callback, void 
 /// return FAIL when no file could be sourced, OK otherwise.
 int source_runtime(char *name, int flags)
 {
-  return do_in_runtimepath((char_u *)name, flags, source_callback, NULL);
+  return do_in_runtimepath(name, flags, source_callback, NULL);
 }
 
 /// Just like source_runtime(), but use "path" instead of 'runtimepath'.
@@ -826,7 +826,7 @@ static int load_pack_plugin(bool opt, char_u *fname)
 
   // If runtime/filetype.vim wasn't loaded yet, the scripts will be
   // found when it loads.
-  if (opt && eval_to_number(cmd) > 0) {
+  if (opt && eval_to_number((char *)cmd) > 0) {
     do_cmdline_cmd("augroup filetypedetect");
     vim_snprintf((char *)pat, len, ftpat, ffname);
     source_all_matches(pat);
@@ -874,14 +874,14 @@ static void add_pack_plugin(bool opt, char_u *fname, void *cookie)
   }
 }
 
-static void add_start_pack_plugin(char_u *fname, void *cookie)
+static void add_start_pack_plugin(char *fname, void *cookie)
 {
-  add_pack_plugin(false, fname, cookie);
+  add_pack_plugin(false, (char_u *)fname, cookie);
 }
 
-static void add_opt_pack_plugin(char_u *fname, void *cookie)
+static void add_opt_pack_plugin(char *fname, void *cookie)
 {
-  add_pack_plugin(true, fname, cookie);
+  add_pack_plugin(true, (char_u *)fname, cookie);
 }
 
 
@@ -902,7 +902,7 @@ static bool pack_has_entries(char_u *buf)
   return num_files > 0;
 }
 
-static void add_pack_start_dir(char_u *fname, void *cookie)
+static void add_pack_start_dir(char *fname, void *cookie)
 {
   static char_u buf[MAXPATHL];
   char *(start_pat[]) = { "/start/*", "/pack/*/start/*" };  // NOLINT

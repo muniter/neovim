@@ -516,6 +516,15 @@ func Test_pum_stopped_by_timer()
   call delete('Xpumscript')
 endfunc
 
+func Test_complete_stopinsert_startinsert()
+  nnoremap <F2> <Cmd>startinsert<CR>
+  inoremap <F2> <Cmd>stopinsert<CR>
+  " This just checks if this causes an error
+  call feedkeys("i\<C-X>\<C-N>\<F2>\<F2>", 'x')
+  nunmap <F2>
+  iunmap <F2>
+endfunc
+
 func Test_pum_with_folds_two_tabs()
   CheckScreendump
 
@@ -705,6 +714,25 @@ func Test_z1_complete_no_history()
   exe "normal owh\<C-N>"
   call assert_equal(currmess, execute('messages'))
   close!
+endfunc
+
+func FooBarComplete(findstart, base)
+  if a:findstart
+    return col('.') - 1
+  else
+    return ["Foo", "Bar", "}"]
+  endif
+endfunc
+
+func Test_complete_smartindent()
+  new
+  setlocal smartindent completefunc=FooBarComplete
+
+  exe "norm! o{\<cr>\<c-x>\<c-u>\<c-p>}\<cr>\<esc>"
+  let result = getline(1,'$')
+  call assert_equal(['', '{','}',''], result)
+  bw!
+  delfunction! FooBarComplete
 endfunc
 
 " vim: shiftwidth=2 sts=2 expandtab

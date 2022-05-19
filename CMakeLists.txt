@@ -108,14 +108,7 @@ endif()
 
 option(ENABLE_LIBINTL "enable libintl" ON)
 option(ENABLE_LIBICONV "enable libiconv" ON)
-if (MINGW)
-  # Disable LTO by default as it may not compile
-  # See https://github.com/Alexpux/MINGW-packages/issues/3516
-  # and https://github.com/neovim/neovim/pull/8654#issuecomment-402316672
-  option(ENABLE_LTO "enable link time optimization" OFF)
-else()
-  option(ENABLE_LTO "enable link time optimization" ON)
-endif()
+option(ENABLE_LTO "enable link time optimization" ON)
 
 message(STATUS "CMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}")
 
@@ -139,12 +132,12 @@ set_property(CACHE CMAKE_BUILD_TYPE PROPERTY
 # If not in a git repo (e.g., a tarball) these tokens define the complete
 # version string, else they are combined with the result of `git describe`.
 set(NVIM_VERSION_MAJOR 0)
-set(NVIM_VERSION_MINOR 7)
+set(NVIM_VERSION_MINOR 8)
 set(NVIM_VERSION_PATCH 0)
 set(NVIM_VERSION_PRERELEASE "-dev") # for package maintainers
 
 # API level
-set(NVIM_API_LEVEL 9)         # Bump this after any API change.
+set(NVIM_API_LEVEL 10)         # Bump this after any API change.
 set(NVIM_API_LEVEL_COMPAT 0)  # Adjust this after a _breaking_ API change.
 set(NVIM_API_PRERELEASE true)
 
@@ -322,10 +315,6 @@ else()
   endif()
 endif()
 
-if(MINGW)
-  # Use POSIX compatible stdio in Mingw
-  add_definitions(-D__USE_MINGW_ANSI_STDIO)
-endif()
 if(WIN32)
   # Windows Vista is the minimum supported version
   add_definitions(-D_WIN32_WINNT=0x0600)
@@ -370,7 +359,7 @@ option(CI_BUILD "CI, extra flags will be set" OFF)
 if(CI_BUILD)
   message(STATUS "CI build enabled")
   add_compile_options(-Werror)
-  if(DEFINED ENV{BUILD_32BIT})
+  if(DEFINED ENV{BUILD_UCHAR})
     # Get some test coverage for unsigned char
     add_compile_options(-funsigned-char)
   endif()
@@ -509,11 +498,6 @@ endif()
 find_package(LIBVTERM 0.1 REQUIRED)
 include_directories(SYSTEM ${LIBVTERM_INCLUDE_DIRS})
 
-if(WIN32)
-  find_package(Winpty 0.4.3 REQUIRED)
-  include_directories(SYSTEM ${WINPTY_INCLUDE_DIRS})
-endif()
-
 option(CLANG_ASAN_UBSAN "Enable Clang address & undefined behavior sanitizer for nvim binary." OFF)
 option(CLANG_MSAN "Enable Clang memory sanitizer for nvim binary." OFF)
 option(CLANG_TSAN "Enable Clang thread sanitizer for nvim binary." OFF)
@@ -619,7 +603,6 @@ endif()
 
 find_program(LUACHECK_PRG luacheck)
 find_program(FLAKE8_PRG flake8)
-find_program(GPERF_PRG gperf)
 
 include(InstallHelpers)
 

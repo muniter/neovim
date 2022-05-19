@@ -32,6 +32,7 @@
 #include "nvim/quickfix.h"
 #include "nvim/strings.h"
 #include "nvim/tag.h"
+#include "nvim/window.h"
 #if defined(UNIX)
 # include <sys/wait.h>
 #endif
@@ -79,7 +80,7 @@ static enum {
  * Function given to ExpandGeneric() to obtain the cscope command
  * expansion.
  */
-char_u *get_cscope_name(expand_T *xp, int idx)
+char *get_cscope_name(expand_T *xp, int idx)
 {
   int current_idx;
 
@@ -87,7 +88,7 @@ char_u *get_cscope_name(expand_T *xp, int idx)
   case EXP_CSCOPE_SUBCMD:
     // Complete with sub-commands of ":cscope":
     // add, find, help, kill, reset, show
-    return (char_u *)cs_cmds[idx].name;
+    return cs_cmds[idx].name;
   case EXP_SCSCOPE_SUBCMD: {
     // Complete with sub-commands of ":scscope": same sub-commands as
     // ":cscope" but skip commands which don't support split windows
@@ -99,7 +100,7 @@ char_u *get_cscope_name(expand_T *xp, int idx)
         }
       }
     }
-    return (char_u *)cs_cmds[i].name;
+    return cs_cmds[i].name;
   }
   case EXP_CSCOPE_FIND: {
     const char *query_type[] =
@@ -111,7 +112,7 @@ char_u *get_cscope_name(expand_T *xp, int idx)
     // {query_type} can be letters (c, d, ... a) or numbers (0, 1,
     // ..., 9) but only complete with letters, since numbers are
     // redundant.
-    return (char_u *)query_type[idx];
+    return (char *)query_type[idx];
   }
   case EXP_CSCOPE_KILL: {
     static char connection[5];
@@ -127,10 +128,10 @@ char_u *get_cscope_name(expand_T *xp, int idx)
       }
       if (current_idx++ == idx) {
         vim_snprintf(connection, sizeof(connection), "%zu", i);
-        return (char_u *)connection;
+        return connection;
       }
     }
-    return (current_idx == idx && idx > 0) ? (char_u *)"-1" : NULL;
+    return (current_idx == idx && idx > 0) ? "-1" : NULL;
   }
   default:
     return NULL;
@@ -144,7 +145,7 @@ void set_context_in_cscope_cmd(expand_T *xp, const char *arg, cmdidx_T cmdidx)
 {
   // Default: expand subcommands.
   xp->xp_context = EXPAND_CSCOPE;
-  xp->xp_pattern = (char_u *)arg;
+  xp->xp_pattern = (char *)arg;
   expand_what = ((cmdidx == CMD_scscope)
                  ? EXP_SCSCOPE_SUBCMD : EXP_CSCOPE_SUBCMD);
 
@@ -152,8 +153,8 @@ void set_context_in_cscope_cmd(expand_T *xp, const char *arg, cmdidx_T cmdidx)
   if (*arg != NUL) {
     const char *p = (const char *)skiptowhite((const char_u *)arg);
     if (*p != NUL) {  // Past first word.
-      xp->xp_pattern = skipwhite((const char_u *)p);
-      if (*skiptowhite(xp->xp_pattern) != NUL) {
+      xp->xp_pattern = skipwhite(p);
+      if (*skiptowhite((char_u *)xp->xp_pattern) != NUL) {
         xp->xp_context = EXPAND_NOTHING;
       } else if (STRNICMP(arg, "add", p - arg) == 0) {
         xp->xp_context = EXPAND_FILES;
@@ -223,8 +224,8 @@ void ex_cstag(exarg_T *eap)
   switch (p_csto) {
   case 0:
     if (cs_check_for_connections()) {
-      ret = cs_find_common("g", (char *)(eap->arg), eap->forceit, false,
-                           false, *eap->cmdlinep);
+      ret = cs_find_common("g", eap->arg, eap->forceit, false,
+                           false, (char_u *)(*eap->cmdlinep));
       if (ret == false) {
         cs_free_tags();
         if (msg_col) {
@@ -232,32 +233,32 @@ void ex_cstag(exarg_T *eap)
         }
 
         if (cs_check_for_tags()) {
-          ret = do_tag(eap->arg, DT_JUMP, 0, eap->forceit, FALSE);
+          ret = do_tag((char_u *)eap->arg, DT_JUMP, 0, eap->forceit, false);
         }
       }
     } else if (cs_check_for_tags()) {
-      ret = do_tag(eap->arg, DT_JUMP, 0, eap->forceit, FALSE);
+      ret = do_tag((char_u *)eap->arg, DT_JUMP, 0, eap->forceit, false);
     }
     break;
   case 1:
     if (cs_check_for_tags()) {
-      ret = do_tag(eap->arg, DT_JUMP, 0, eap->forceit, FALSE);
-      if (ret == FALSE) {
+      ret = do_tag((char_u *)eap->arg, DT_JUMP, 0, eap->forceit, false);
+      if (ret == false) {
         if (msg_col) {
           msg_putchar('\n');
         }
 
         if (cs_check_for_connections()) {
-          ret = cs_find_common("g", (char *)(eap->arg), eap->forceit,
-                               false, false, *eap->cmdlinep);
+          ret = cs_find_common("g", eap->arg, eap->forceit,
+                               false, false, (char_u *)(*eap->cmdlinep));
           if (ret == false) {
             cs_free_tags();
           }
         }
       }
     } else if (cs_check_for_connections()) {
-      ret = cs_find_common("g", (char *)(eap->arg), eap->forceit, false,
-                           false, *eap->cmdlinep);
+      ret = cs_find_common("g", eap->arg, eap->forceit, false,
+                           false, (char_u *)(*eap->cmdlinep));
       if (ret == false) {
         cs_free_tags();
       }
@@ -428,12 +429,12 @@ static int cs_add_common(char *arg1, char *arg2, char *flags)
   expand_env((char_u *)arg1, (char_u *)fname, MAXPATHL);
   size_t len = STRLEN(fname);
   fbuf = (char_u *)fname;
-  (void)modify_fname((char_u *)":p", false, &usedlen,
-                     (char_u **)&fname, &fbuf, &len);
+  (void)modify_fname(":p", false, &usedlen,
+                     &fname, (char **)&fbuf, &len);
   if (fname == NULL) {
     goto add_err;
   }
-  fname = (char *)vim_strnsave((char_u *)fname, len);
+  fname = xstrnsave(fname, len);
   xfree(fbuf);
   FileInfo file_info;
   bool file_info_ok  = os_fileinfo(fname, &file_info);
@@ -459,9 +460,9 @@ staterr:
   if (S_ISDIR(file_info.stat.st_mode)) {
     fname2 = (char *)xmalloc(strlen(CSCOPE_DBFILE) + strlen(fname) + 2);
 
-    while (fname[strlen(fname)-1] == '/'
+    while (fname[strlen(fname) - 1] == '/'
            ) {
-      fname[strlen(fname)-1] = '\0';
+      fname[strlen(fname) - 1] = '\0';
       if (fname[0] == '\0') {
         break;
       }
@@ -898,7 +899,7 @@ static int cs_find(exarg_T *eap)
   }
 
   pat = opt + strlen(opt) + 1;
-  if (pat >= (char *)eap->arg + eap_arg_len) {
+  if (pat >= eap->arg + eap_arg_len) {
     cs_usage_msg(Find);
     return false;
   }
@@ -914,7 +915,7 @@ static int cs_find(exarg_T *eap)
   }
 
   return cs_find_common(opt, pat, eap->forceit, true,
-                        eap->cmdidx == CMD_lcscope, *eap->cmdlinep);
+                        eap->cmdidx == CMD_lcscope, (char_u *)(*eap->cmdlinep));
 }
 
 
@@ -961,7 +962,7 @@ static bool cs_find_common(char *opt, char *pat, int forceit, int verbose, bool 
     cmdletter = opt[0];
   }
 
-  qfpos = (char *)vim_strchr(p_csqf, cmdletter);
+  qfpos = vim_strchr((char *)p_csqf, cmdletter);
   if (qfpos != NULL) {
     qfpos++;
     // next symbol must be + or -
@@ -971,8 +972,7 @@ static bool cs_find_common(char *opt, char *pat, int forceit, int verbose, bool 
     }
 
     if (*qfpos != '0'
-        && apply_autocmds(EVENT_QUICKFIXCMDPRE, (char_u *)"cscope",
-                          curbuf->b_fname, true, curbuf)) {
+        && apply_autocmds(EVENT_QUICKFIXCMDPRE, "cscope", curbuf->b_fname, true, curbuf)) {
       if (aborting()) {
         return false;
       }
@@ -1039,8 +1039,8 @@ static bool cs_find_common(char *opt, char *pat, int forceit, int verbose, bool 
         wp = curwin;
       }
       // '-' starts a new error list
-      if (qf_init(wp, tmp, (char_u *)"%f%*\\t%l%*\\t%m",
-                  *qfpos == '-', cmdline, NULL) > 0) {
+      if (qf_init(wp, (char *)tmp, "%f%*\\t%l%*\\t%m",
+                  *qfpos == '-', (char *)cmdline, NULL) > 0) {
         if (postponed_split != 0) {
           (void)win_split(postponed_split > 0 ? postponed_split : 0,
                           postponed_split_flags);
@@ -1048,8 +1048,7 @@ static bool cs_find_common(char *opt, char *pat, int forceit, int verbose, bool 
           postponed_split = 0;
         }
 
-        apply_autocmds(EVENT_QUICKFIXCMDPOST, (char_u *)"cscope",
-                       curbuf->b_fname, TRUE, curbuf);
+        apply_autocmds(EVENT_QUICKFIXCMDPOST, "cscope", curbuf->b_fname, true, curbuf);
         if (use_ll) {
           /*
            * In the location list window, use the displayed location
@@ -1209,7 +1208,7 @@ static cscmd_T *cs_lookup_cmd(exarg_T *eap)
   // Store length of eap->arg before it gets modified by strtok().
   eap_arg_len = (int)STRLEN(eap->arg);
 
-  if ((stok = strtok((char *)(eap->arg), (const char *)" ")) == NULL) {
+  if ((stok = strtok(eap->arg, (const char *)" ")) == NULL) {  // NOLINT(runtime/threadsafe_fn)
     return NULL;
   }
 
@@ -1443,8 +1442,7 @@ retry:
 
   // If the line's too long for the buffer, discard it.
   if ((p = strchr(buf, '\n')) == NULL) {
-    while ((ch = getc(csinfo[cnumber].fr_fp)) != EOF && ch != '\n') {
-    }
+    while ((ch = getc(csinfo[cnumber].fr_fp)) != EOF && ch != '\n') {}
     return NULL;
   }
   *p = '\0';
@@ -1593,8 +1591,7 @@ static char *cs_pathcomponents(char *path)
 
   char *s = path + strlen(path) - 1;
   for (int i = 0; i < p_cspc; i++) {
-    while (s > path && *--s != '/') {
-    }
+    while (s > path && *--s != '/') {}
   }
   if ((s > path && *s == '/')) {
     s++;
@@ -2009,8 +2006,8 @@ static char *cs_resolve_file(size_t i, char *name)
     // path in path resolution.
     csdir = xmalloc(MAXPATHL);
     STRLCPY(csdir, csinfo[i].fname,
-            path_tail((char_u *)csinfo[i].fname)
-            - (char_u *)csinfo[i].fname + 1);
+            path_tail(csinfo[i].fname)
+            - csinfo[i].fname + 1);
     len += STRLEN(csdir);
   }
 

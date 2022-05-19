@@ -23,9 +23,9 @@
 // Copy string or array of strings into an empty array.
 // Get the event number, unless it is an error. Then goto `goto_name`.
 #define GET_ONE_EVENT(event_nr, event_str, goto_name) \
-  char_u *__next_ev; \
+  char *__next_ev; \
   event_T event_nr = \
-    event_name2nr((char_u *)event_str.data.string.data, &__next_ev); \
+    event_name2nr(event_str.data.string.data, &__next_ev); \
   if (event_nr >= NUM_EVENTS) { \
     api_set_error(err, kErrorTypeValidation, "unexpected event"); \
     goto goto_name; \
@@ -36,7 +36,7 @@
 // Used to delete autocmds from nvim_del_autocmd
 static int64_t next_autocmd_id = 1;
 
-/// Get autocommands that match the requirements passed to {opts}.
+/// Get all autocommands that match the corresponding {opts}.
 ///
 /// These examples will get autocommands matching ALL the given criteria:
 /// <pre>
@@ -64,6 +64,7 @@ static int64_t next_autocmd_id = 1;
 ///         containing the following fields:
 ///             - id (number): the autocommand id (only when defined with the API).
 ///             - group (integer): the autocommand group id.
+///             - group_name (string): the autocommand group name.
 ///             - desc (string): the autocommand description.
 ///             - event (string): the autocommand event.
 ///             - the command (string): the autocommand command.
@@ -78,8 +79,8 @@ Array nvim_get_autocmds(Dict(get_autocmds) *opts, Error *err)
   // TODO(tjdevries): Would be cool to add nvim_get_autocmds({ id = ... })
 
   Array autocmd_list = ARRAY_DICT_INIT;
-  char_u *pattern_filters[AUCMD_MAX_PATTERNS];
-  char_u pattern_buflocal[BUFLOCAL_PAT_LEN];
+  char *pattern_filters[AUCMD_MAX_PATTERNS];
+  char pattern_buflocal[BUFLOCAL_PAT_LEN];
 
   Array buffers = ARRAY_DICT_INIT;
 
@@ -148,7 +149,7 @@ Array nvim_get_autocmds(Dict(get_autocmds) *opts, Error *err)
   if (opts->pattern.type != kObjectTypeNil) {
     Object v = opts->pattern;
     if (v.type == kObjectTypeString) {
-      pattern_filters[pattern_filter_count] = (char_u *)v.data.string.data;
+      pattern_filters[pattern_filter_count] = v.data.string.data;
       pattern_filter_count += 1;
     } else if (v.type == kObjectTypeArray) {
       if (v.data.array.size > AUCMD_MAX_PATTERNS) {
@@ -164,7 +165,7 @@ Array nvim_get_autocmds(Dict(get_autocmds) *opts, Error *err)
           goto cleanup;
         }
 
-        pattern_filters[pattern_filter_count] = (char_u *)item.data.string.data;
+        pattern_filters[pattern_filter_count] = item.data.string.data;
         pattern_filter_count += 1;
       });
     } else {
@@ -211,7 +212,7 @@ Array nvim_get_autocmds(Dict(get_autocmds) *opts, Error *err)
   }
 
   FOREACH_ITEM(buffers, bufnr, {
-    pattern_filters[pattern_filter_count] = (char_u *)bufnr.data.string.data;
+    pattern_filters[pattern_filter_count] = bufnr.data.string.data;
     pattern_filter_count += 1;
   });
 
@@ -237,7 +238,7 @@ Array nvim_get_autocmds(Dict(get_autocmds) *opts, Error *err)
           assert(i < AUCMD_MAX_PATTERNS);
           assert(pattern_filters[i]);
 
-          char_u *pat = pattern_filters[i];
+          char *pat = pattern_filters[i];
           int patlen = (int)STRLEN(pat);
 
           if (aupat_is_buflocal(pat, patlen)) {
@@ -249,7 +250,7 @@ Array nvim_get_autocmds(Dict(get_autocmds) *opts, Error *err)
             pat = pattern_buflocal;
           }
 
-          if (strequal((char *)ap->pat, (char *)pat)) {
+          if (strequal(ap->pat, pat)) {
             passed = true;
             break;
           }
@@ -269,6 +270,7 @@ Array nvim_get_autocmds(Dict(get_autocmds) *opts, Error *err)
 
         if (ap->group != AUGROUP_DEFAULT) {
           PUT(autocmd_info, "group", INTEGER_OBJ(ap->group));
+          PUT(autocmd_info, "group_name", CSTR_TO_OBJ(augroup_name(ap->group)));
         }
 
         if (ac->id > 0) {
@@ -346,6 +348,22 @@ cleanup:
 ///     })
 /// </pre>
 ///
+/// Lua functions receive a table with information about the autocmd event as an argument. To use
+/// a function which itself accepts another (optional) parameter, wrap the function
+/// in a lambda:
+///
+/// <pre>
+///     -- Lua function with an optional parameter.
+///     -- The autocmd callback would pass a table as argument but this
+///     -- function expects number|nil
+///     local myluafun = function(bufnr) bufnr = bufnr or vim.api.nvim_get_current_buf() end
+///
+///     vim.api.nvim_create_autocmd({"BufEnter", "BufWinEnter"}, {
+///       pattern = {"*.c", "*.h"},
+///       callback = function() myluafun() end,
+///     })
+/// </pre>
+///
 /// Example using command:
 /// <pre>
 ///     vim.api.nvim_create_autocmd({"BufEnter", "BufWinEnter"}, {
@@ -360,13 +378,13 @@ cleanup:
 ///   pattern = { "*.py", "*.pyi" }
 /// </pre>
 ///
-/// Examples values for event:
+/// Example values for event:
 /// <pre>
-///   "BufPreWrite"
-///   {"CursorHold", "BufPreWrite", "BufPostWrite"}
+///   "BufWritePre"
+///   {"CursorHold", "BufWritePre", "BufWritePost"}
 /// </pre>
 ///
-/// @param event (String|Array) The event or events to register this autocommand
+/// @param event (string|array) The event or events to register this autocommand
 /// @param opts Dictionary of autocommand options:
 ///             - group (string|integer) optional: the autocommand group name or
 ///             id to match against.
@@ -375,8 +393,19 @@ cleanup:
 ///             - buffer (integer) optional: buffer number for buffer local autocommands
 ///             |autocmd-buflocal|. Cannot be used with {pattern}.
 ///             - desc (string) optional: description of the autocommand.
-///             - callback (function|string) optional: Lua function or Vim function (as string) to
-///             execute on event. Cannot be used with {command}
+///             - callback (function|string) optional: if a string, the name of a Vimscript function
+///             to call when this autocommand is triggered. Otherwise, a Lua function which is
+///             called when this autocommand is triggered. Cannot be used with {command}. Lua
+///             callbacks can return true to delete the autocommand; in addition, they accept a
+///             single table argument with the following keys:
+///                 - id: (number) the autocommand id
+///                 - event: (string) the name of the event that triggered the autocommand
+///                 |autocmd-events|
+///                 - group: (number|nil) the autocommand group id, if it exists
+///                 - match: (string) the expanded value of |<amatch>|
+///                 - buf: (number) the expanded value of |<abuf>|
+///                 - file: (string) the expanded value of |<afile>|
+///                 - data: (any) arbitrary data passed to |nvim_exec_autocmds()|
 ///             - command (string) optional: Vim command to execute on event. Cannot be used with
 ///             {callback}
 ///             - once (boolean) optional: defaults to false. Run the autocommand
@@ -392,9 +421,6 @@ Integer nvim_create_autocmd(uint64_t channel_id, Object event, Dict(create_autoc
   FUNC_API_SINCE(9)
 {
   int64_t autocmd_id = -1;
-
-  const char_u pattern_buflocal[BUFLOCAL_PAT_LEN];
-  int au_group = AUGROUP_DEFAULT;
   char *desc = NULL;
 
   Array patterns = ARRAY_DICT_INIT;
@@ -404,7 +430,7 @@ Integer nvim_create_autocmd(uint64_t channel_id, Object event, Dict(create_autoc
   Callback cb = CALLBACK_NONE;
 
 
-  if (!unpack_string_or_array(&event_array, &event, "event", err)) {
+  if (!unpack_string_or_array(&event_array, &event, "event", true, err)) {
     goto cleanup;
   }
 
@@ -437,7 +463,7 @@ Integer nvim_create_autocmd(uint64_t channel_id, Object event, Dict(create_autoc
       cb.data.luaref = api_new_luaref(callback->data.luaref);
     } else if (callback->type == kObjectTypeString) {
       cb.type = kCallbackFuncref;
-      cb.data.funcref = vim_strsave((char_u *)callback->data.string.data);
+      cb.data.funcref = string_to_cstr(callback->data.string);
     } else {
       api_set_error(err,
                     kErrorTypeException,
@@ -451,7 +477,7 @@ Integer nvim_create_autocmd(uint64_t channel_id, Object event, Dict(create_autoc
     Object *command = &opts->command;
     if (command->type == kObjectTypeString) {
       aucmd.type = CALLABLE_EX;
-      aucmd.callable.cmd = vim_strsave((char_u *)command->data.string.data);
+      aucmd.callable.cmd = string_to_cstr(command->data.string);
     } else {
       api_set_error(err,
                     kErrorTypeValidation,
@@ -466,84 +492,13 @@ Integer nvim_create_autocmd(uint64_t channel_id, Object event, Dict(create_autoc
   bool is_once = api_object_to_bool(opts->once, "once", false, err);
   bool is_nested = api_object_to_bool(opts->nested, "nested", false, err);
 
-  switch (opts->group.type) {
-  case kObjectTypeNil:
-    break;
-  case kObjectTypeString:
-    au_group = augroup_find(opts->group.data.string.data);
-    if (au_group == AUGROUP_ERROR) {
-      api_set_error(err,
-                    kErrorTypeValidation,
-                    "invalid augroup: %s", opts->group.data.string.data);
-      goto cleanup;
-    }
-    break;
-  case kObjectTypeInteger:
-    au_group = (int)opts->group.data.integer;
-    char *name = augroup_name(au_group);
-    if (!augroup_exists(name)) {
-      api_set_error(err, kErrorTypeValidation, "invalid augroup: %d", au_group);
-      goto cleanup;
-    }
-    break;
-  default:
-    api_set_error(err, kErrorTypeValidation, "'group' must be a string or an integer.");
+  int au_group = get_augroup_from_object(opts->group, err);
+  if (au_group == AUGROUP_ERROR) {
     goto cleanup;
   }
 
-  if (opts->pattern.type != kObjectTypeNil && opts->buffer.type != kObjectTypeNil) {
-    api_set_error(err, kErrorTypeValidation,
-                  "cannot pass both: 'pattern' and 'buffer' for the same autocmd");
+  if (!get_patterns_from_pattern_or_buf(&patterns, opts->pattern, opts->buffer, err)) {
     goto cleanup;
-  } else if (opts->pattern.type != kObjectTypeNil) {
-    Object *v = &opts->pattern;
-
-    if (v->type == kObjectTypeString) {
-      char_u *pat = (char_u *)v->data.string.data;
-      size_t patlen = aucmd_pattern_length(pat);
-      while (patlen) {
-        ADD(patterns, STRING_OBJ(cbuf_to_string((char *)pat, patlen)));
-
-        pat = aucmd_next_pattern(pat, patlen);
-        patlen = aucmd_pattern_length(pat);
-      }
-    } else if (v->type == kObjectTypeArray) {
-      if (!check_autocmd_string_array(patterns, "pattern", err)) {
-        goto cleanup;
-      }
-
-      Array array = v->data.array;
-      for (size_t i = 0; i < array.size; i++) {
-        char_u *pat = (char_u *)array.items[i].data.string.data;
-        size_t patlen = aucmd_pattern_length(pat);
-        while (patlen) {
-          ADD(patterns, STRING_OBJ(cbuf_to_string((char *)pat, patlen)));
-
-          pat = aucmd_next_pattern(pat, patlen);
-          patlen = aucmd_pattern_length(pat);
-        }
-      }
-    } else {
-      api_set_error(err,
-                    kErrorTypeValidation,
-                    "'pattern' must be a string");
-      goto cleanup;
-    }
-  } else if (opts->buffer.type != kObjectTypeNil) {
-    if (opts->buffer.type != kObjectTypeInteger) {
-      api_set_error(err,
-                    kErrorTypeValidation,
-                    "'buffer' must be an integer");
-      goto cleanup;
-    }
-
-    buf_T *buf = find_buffer_by_handle((Buffer)opts->buffer.data.integer, err);
-    if (ERROR_SET(err)) {
-      goto cleanup;
-    }
-
-    snprintf((char *)pattern_buflocal, BUFLOCAL_PAT_LEN, "<buffer=%d>", (int)buf->handle);
-    ADD(patterns, STRING_OBJ(cstr_to_string((char *)pattern_buflocal)));
   }
 
   if (opts->desc.type != kObjectTypeNil) {
@@ -579,7 +534,7 @@ Integer nvim_create_autocmd(uint64_t channel_id, Object event, Dict(create_autoc
       WITH_SCRIPT_CONTEXT(channel_id, {
         retval = autocmd_register(autocmd_id,
                                   event_nr,
-                                  (char_u *)pat.data.string.data,
+                                  pat.data.string.data,
                                   (int)pat.data.string.size,
                                   au_group,
                                   is_once,
@@ -609,10 +564,102 @@ cleanup:
 /// NOTE: Only autocommands created via the API have an id.
 /// @param id Integer The id returned by nvim_create_autocmd
 /// @see |nvim_create_autocmd()|
-void nvim_del_autocmd(Integer id)
+void nvim_del_autocmd(Integer id, Error *err)
   FUNC_API_SINCE(9)
 {
-  autocmd_delete_id(id);
+  if (id <= 0) {
+    api_set_error(err, kErrorTypeException, "Invalid autocmd id");
+    return;
+  }
+  if (!autocmd_delete_id(id)) {
+    api_set_error(err, kErrorTypeException, "Failed to delete autocmd");
+  }
+}
+
+/// Clear all autocommands that match the corresponding {opts}. To delete
+/// a particular autocmd, see |nvim_del_autocmd|.
+/// @param opts Parameters
+///         - event: (string|table)
+///              Examples:
+///                 - event: "pat1"
+///                 - event: { "pat1" }
+///                 - event: { "pat1", "pat2", "pat3" }
+///         - pattern: (string|table)
+///             - pattern or patterns to match exactly.
+///                 - For example, if you have `*.py` as that pattern for the autocmd,
+///                   you must pass `*.py` exactly to clear it. `test.py` will not
+///                   match the pattern.
+///             - defaults to clearing all patterns.
+///             - NOTE: Cannot be used with {buffer}
+///         - buffer: (bufnr)
+///             - clear only |autocmd-buflocal| autocommands.
+///             - NOTE: Cannot be used with {pattern}
+///         - group: (string|int) The augroup name or id.
+///             - NOTE: If not passed, will only delete autocmds *not* in any group.
+///
+void nvim_clear_autocmds(Dict(clear_autocmds) *opts, Error *err)
+  FUNC_API_SINCE(9)
+{
+  // TODO(tjdevries): Future improvements:
+  //        - once: (boolean) - Only clear autocmds with once. See |autocmd-once|
+  //        - nested: (boolean) - Only clear autocmds with nested. See |autocmd-nested|
+  //        - group: Allow passing "*" or true or something like that to force doing all
+  //        autocmds, regardless of their group.
+
+  Array patterns = ARRAY_DICT_INIT;
+  Array event_array = ARRAY_DICT_INIT;
+
+  if (!unpack_string_or_array(&event_array, &opts->event, "event", false, err)) {
+    goto cleanup;
+  }
+
+  if (opts->pattern.type != kObjectTypeNil && opts->buffer.type != kObjectTypeNil) {
+    api_set_error(err, kErrorTypeValidation,
+                  "Cannot use both 'pattern' and 'buffer'");
+    goto cleanup;
+  }
+
+  int au_group = get_augroup_from_object(opts->group, err);
+  if (au_group == AUGROUP_ERROR) {
+    goto cleanup;
+  }
+
+  if (!get_patterns_from_pattern_or_buf(&patterns, opts->pattern, opts->buffer, err)) {
+    goto cleanup;
+  }
+
+  // When we create the autocmds, we want to say that they are all matched, so that's *
+  // but when we clear them, we want to say that we didn't pass a pattern, so that's NUL
+  if (patterns.size == 0) {
+    ADD(patterns, STRING_OBJ(STATIC_CSTR_TO_STRING("")));
+  }
+
+  // If we didn't pass any events, that means clear all events.
+  if (event_array.size == 0) {
+    FOR_ALL_AUEVENTS(event) {
+      FOREACH_ITEM(patterns, pat_object, {
+        char *pat = pat_object.data.string.data;
+        if (!clear_autocmd(event, (char *)pat, au_group, err)) {
+          goto cleanup;
+        }
+      });
+    }
+  } else {
+    FOREACH_ITEM(event_array, event_str, {
+      GET_ONE_EVENT(event_nr, event_str, cleanup);
+
+      FOREACH_ITEM(patterns, pat_object, {
+        char *pat = pat_object.data.string.data;
+        if (!clear_autocmd(event_nr, (char *)pat, au_group, err)) {
+          goto cleanup;
+        }
+      });
+    });
+  }
+
+cleanup:
+  api_free_array(event_array);
+  api_free_array(patterns);
 }
 
 /// Create or get an autocommand group |autocmd-groups|.
@@ -664,11 +711,15 @@ Integer nvim_create_augroup(uint64_t channel_id, String name, Dict(create_augrou
 /// @param id Integer The id of the group.
 /// @see |nvim_del_augroup_by_name()|
 /// @see |nvim_create_augroup()|
-void nvim_del_augroup_by_id(Integer id)
+void nvim_del_augroup_by_id(Integer id, Error *err)
   FUNC_API_SINCE(9)
 {
-  char *name = augroup_name((int)id);
-  augroup_del(name, false);
+  TRY_WRAP({
+    try_start();
+    char *name = augroup_name((int)id);
+    augroup_del(name, false);
+    try_end(err);
+  });
 }
 
 /// Delete an autocommand group by name.
@@ -677,13 +728,18 @@ void nvim_del_augroup_by_id(Integer id)
 /// this group will also be deleted and cleared. This group will no longer exist.
 /// @param name String The name of the group.
 /// @see |autocommand-groups|
-void nvim_del_augroup_by_name(String name)
+void nvim_del_augroup_by_name(String name, Error *err)
   FUNC_API_SINCE(9)
 {
-  augroup_del(name.data, false);
+  TRY_WRAP({
+    try_start();
+    augroup_del(name.data, false);
+    try_end(err);
+  });
 }
 
-/// Execute an autocommand |autocmd-execute|.
+/// Execute all autocommands for {event} that match the corresponding
+///  {opts} |autocmd-execute|.
 /// @param event (String|Array) The event or events to execute
 /// @param opts Dictionary of autocommand options:
 ///             - group (string|integer) optional: the autocommand group name or
@@ -694,8 +750,10 @@ void nvim_del_augroup_by_name(String name)
 ///             {pattern}.
 ///             - modeline (bool) optional: defaults to true. Process the
 ///             modeline after the autocommands |<nomodeline>|.
+///             - data (any): arbitrary data to send to the autocommand callback. See
+///             |nvim_create_autocmd()| for details.
 /// @see |:doautocmd|
-void nvim_do_autocmd(Object event, Dict(do_autocmd) *opts, Error *err)
+void nvim_exec_autocmds(Object event, Dict(exec_autocmds) *opts, Error *err)
   FUNC_API_SINCE(9)
 {
   int au_group = AUGROUP_ALL;
@@ -704,12 +762,13 @@ void nvim_do_autocmd(Object event, Dict(do_autocmd) *opts, Error *err)
   buf_T *buf = curbuf;
   bool set_buf = false;
 
-  char_u *pattern = NULL;
+  char *pattern = NULL;
+  Object *data = NULL;
   bool set_pattern = false;
 
   Array event_array = ARRAY_DICT_INIT;
 
-  if (!unpack_string_or_array(&event_array, &event, "event", err)) {
+  if (!unpack_string_or_array(&event_array, &event, "event", true, err)) {
     goto cleanup;
   }
 
@@ -759,8 +818,12 @@ void nvim_do_autocmd(Object event, Dict(do_autocmd) *opts, Error *err)
       goto cleanup;
     }
 
-    pattern = vim_strsave((char_u *)opts->pattern.data.string.data);
+    pattern = string_to_cstr(opts->pattern.data.string);
     set_pattern = true;
+  }
+
+  if (opts->data.type != kObjectTypeNil) {
+    data = &opts->data;
   }
 
   modeline = api_object_to_bool(opts->modeline, "modeline", true, err);
@@ -774,7 +837,7 @@ void nvim_do_autocmd(Object event, Dict(do_autocmd) *opts, Error *err)
   FOREACH_ITEM(event_array, event_str, {
     GET_ONE_EVENT(event_nr, event_str, cleanup)
 
-    did_aucmd |= apply_autocmds_group(event_nr, pattern, NULL, true, au_group, buf, NULL);
+    did_aucmd |= apply_autocmds_group(event_nr, pattern, NULL, true, au_group, buf, NULL, data);
   })
 
   if (did_aucmd && modeline) {
@@ -808,7 +871,7 @@ static bool check_autocmd_string_array(Array arr, char *k, Error *err)
   return true;
 }
 
-static bool unpack_string_or_array(Array *array, Object *v, char *k, Error *err)
+static bool unpack_string_or_array(Array *array, Object *v, char *k, bool required, Error *err)
 {
   if (v->type == kObjectTypeString) {
     ADD(*array, copy_object(*v));
@@ -818,10 +881,119 @@ static bool unpack_string_or_array(Array *array, Object *v, char *k, Error *err)
     }
     *array = copy_array(v->data.array);
   } else {
-    api_set_error(err,
-                  kErrorTypeValidation,
-                  "'%s' must be an array or a string.",
-                  k);
+    if (required) {
+      api_set_error(err,
+                    kErrorTypeValidation,
+                    "'%s' must be an array or a string.",
+                    k);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// Returns AUGROUP_ERROR if there was a problem with {group}
+static int get_augroup_from_object(Object group, Error *err)
+{
+  int au_group = AUGROUP_ERROR;
+
+  switch (group.type) {
+  case kObjectTypeNil:
+    return AUGROUP_DEFAULT;
+  case kObjectTypeString:
+    au_group = augroup_find(group.data.string.data);
+    if (au_group == AUGROUP_ERROR) {
+      api_set_error(err,
+                    kErrorTypeValidation,
+                    "invalid augroup: %s", group.data.string.data);
+
+      return AUGROUP_ERROR;
+    }
+
+    return au_group;
+  case kObjectTypeInteger:
+    au_group = (int)group.data.integer;
+    char *name = augroup_name(au_group);
+    if (!augroup_exists(name)) {
+      api_set_error(err, kErrorTypeValidation, "invalid augroup: %d", au_group);
+      return AUGROUP_ERROR;
+    }
+
+    return au_group;
+  default:
+    api_set_error(err, kErrorTypeValidation, "'group' must be a string or an integer.");
+    return AUGROUP_ERROR;
+  }
+}
+
+static bool get_patterns_from_pattern_or_buf(Array *patterns, Object pattern, Object buffer,
+                                             Error *err)
+{
+  const char pattern_buflocal[BUFLOCAL_PAT_LEN];
+
+  if (pattern.type != kObjectTypeNil && buffer.type != kObjectTypeNil) {
+    api_set_error(err, kErrorTypeValidation,
+                  "cannot pass both: 'pattern' and 'buffer' for the same autocmd");
+    return false;
+  } else if (pattern.type != kObjectTypeNil) {
+    Object *v = &pattern;
+
+    if (v->type == kObjectTypeString) {
+      char *pat = v->data.string.data;
+      size_t patlen = aucmd_pattern_length(pat);
+      while (patlen) {
+        ADD(*patterns, STRING_OBJ(cbuf_to_string((char *)pat, patlen)));
+
+        pat = aucmd_next_pattern(pat, patlen);
+        patlen = aucmd_pattern_length(pat);
+      }
+    } else if (v->type == kObjectTypeArray) {
+      if (!check_autocmd_string_array(*patterns, "pattern", err)) {
+        return false;
+      }
+
+      Array array = v->data.array;
+      for (size_t i = 0; i < array.size; i++) {
+        char *pat = array.items[i].data.string.data;
+        size_t patlen = aucmd_pattern_length(pat);
+        while (patlen) {
+          ADD(*patterns, STRING_OBJ(cbuf_to_string((char *)pat, patlen)));
+
+          pat = aucmd_next_pattern(pat, patlen);
+          patlen = aucmd_pattern_length(pat);
+        }
+      }
+    } else {
+      api_set_error(err,
+                    kErrorTypeValidation,
+                    "'pattern' must be a string");
+      return false;
+    }
+  } else if (buffer.type != kObjectTypeNil) {
+    if (buffer.type != kObjectTypeInteger) {
+      api_set_error(err,
+                    kErrorTypeValidation,
+                    "'buffer' must be an integer");
+      return false;
+    }
+
+    buf_T *buf = find_buffer_by_handle((Buffer)buffer.data.integer, err);
+    if (ERROR_SET(err)) {
+      return false;
+    }
+
+    snprintf((char *)pattern_buflocal, BUFLOCAL_PAT_LEN, "<buffer=%d>", (int)buf->handle);
+    ADD(*patterns, STRING_OBJ(cstr_to_string((char *)pattern_buflocal)));
+  }
+
+  return true;
+}
+
+static bool clear_autocmd(event_T event, char *pat, int au_group, Error *err)
+{
+  if (do_autocmd_event(event, pat, false, false, "", true, au_group) == FAIL) {
+    api_set_error(err, kErrorTypeException, "Failed to clear autocmd");
     return false;
   }
 

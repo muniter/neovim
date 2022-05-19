@@ -631,7 +631,6 @@ void free_all_mem(void)
   clear_sb_text(true);            // free any scrollback text
 
   // Free some global vars.
-  xfree(last_mode);
   xfree(last_cmdline);
   xfree(new_last_cmdline);
   set_keep_msg(NULL, 0);
@@ -691,13 +690,13 @@ void free_all_mem(void)
     bufref_T bufref;
     set_bufref(&bufref, buf);
     nextbuf = buf->b_next;
-    close_buffer(NULL, buf, DOBUF_WIPE, false);
+    close_buffer(NULL, buf, DOBUF_WIPE, false, false);
     // Didn't work, try next one.
     buf = bufref_valid(&bufref) ? nextbuf : firstbuf;
   }
 
   // free screenlines (can't display anything now!)
-  screen_free_all_mem();
+  grid_free_all_mem();
 
   clear_hl_tables(false);
   list_free_log();
@@ -710,4 +709,3 @@ void free_all_mem(void)
 }
 
 #endif
-

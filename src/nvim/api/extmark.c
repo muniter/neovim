@@ -146,6 +146,10 @@ static Array extmark_to_array(ExtmarkInfo extmark, bool id, bool add_dict)
           STRING_OBJ(cstr_to_string(virt_text_pos_str[decor->virt_text_pos])));
     }
 
+    if (decor->ui_watched) {
+      PUT(dict, "ui_watched", BOOLEAN_OBJ(true));
+    }
+
     if (kv_size(decor->virt_lines)) {
       Array all_chunks = ARRAY_DICT_INIT;
       bool virt_lines_leftcol = false;
@@ -170,7 +174,7 @@ static Array extmark_to_array(ExtmarkInfo extmark, bool id, bool add_dict)
       PUT(dict, "virt_lines_leftcol", BOOLEAN_OBJ(virt_lines_leftcol));
     }
 
-    if (decor->hl_id || kv_size(decor->virt_text)) {
+    if (decor->hl_id || kv_size(decor->virt_text) || decor->ui_watched) {
       PUT(dict, "priority", INTEGER_OBJ(decor->priority));
     }
 
@@ -259,9 +263,9 @@ ArrayOf(Integer) nvim_buf_get_extmark_by_id(Buffer buffer, Integer ns_id,
 ///   local pos = a.nvim_win_get_cursor(0)
 ///   local ns  = a.nvim_create_namespace('my-plugin')
 ///   -- Create new extmark at line 1, column 1.
-///   local m1  = a.nvim_buf_set_extmark(0, ns, 0, 0, 0, {})
+///   local m1  = a.nvim_buf_set_extmark(0, ns, 0, 0, {})
 ///   -- Create new extmark at line 3, column 1.
-///   local m2  = a.nvim_buf_set_extmark(0, ns, 0, 2, 0, {})
+///   local m2  = a.nvim_buf_set_extmark(0, ns, 0, 2, {})
 ///   -- Get extmarks only from line 3.
 ///   local ms  = a.nvim_buf_get_extmarks(0, ns, {2,0}, {2,0}, {})
 ///   -- Get all marks in this buffer + namespace.
@@ -472,6 +476,10 @@ Array nvim_buf_get_extmarks(Buffer buffer, Integer ns_id, Object start, Object e
 ///                   When a character is supplied it is used as |:syn-cchar|.
 ///                   "hl_group" is used as highlight for the cchar if provided,
 ///                   otherwise it defaults to |hl-Conceal|.
+///               - ui_watched: boolean that indicates the mark should be drawn
+///                   by a UI. When set, the UI will receive win_extmark events.
+///                   Note: the mark is positioned by virt_text attributes. Can be
+///                   used together with virt_text.
 ///
 /// @param[out]  err   Error details, if any
 /// @return Id of the created/updated extmark
@@ -480,6 +488,7 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
   FUNC_API_SINCE(7)
 {
   Decoration decor = DECORATION_INIT;
+  bool has_decor = false;
 
   buf_T *buf = find_buffer_by_handle(buffer, err);
   if (!buf) {
@@ -546,6 +555,8 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
     goto error;
   }
 
+  // uncrustify:off
+
   struct {
     const char *name;
     Object *opt;
@@ -559,12 +570,15 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
     { NULL, NULL, NULL },
   };
 
+  // uncrustify:on
+
   for (int j = 0; hls[j].name && hls[j].dest; j++) {
     if (HAS_KEY(*hls[j].opt)) {
       *hls[j].dest = object_to_hl_id(*hls[j].opt, hls[j].name, err);
       if (ERROR_SET(err)) {
         goto error;
       }
+      has_decor = true;
     }
   }
 
@@ -572,8 +586,9 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
     String c = opts->conceal.data.string;
     decor.conceal = true;
     if (c.size) {
-      decor.conceal_char = utf_ptr2char((const char_u *)c.data);
+      decor.conceal_char = utf_ptr2char(c.data);
     }
+    has_decor = true;
   } else if (HAS_KEY(opts->conceal)) {
     api_set_error(err, kErrorTypeValidation, "conceal is not a String");
     goto error;
@@ -582,6 +597,7 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
   if (opts->virt_text.type == kObjectTypeArray) {
     decor.virt_text = parse_virt_text(opts->virt_text.data.array, err,
                                       &decor.virt_text_width);
+    has_decor = true;
     if (ERROR_SET(err)) {
       goto error;
     }
@@ -653,6 +669,7 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
       if (ERROR_SET(err)) {
         goto error;
       }
+      has_decor = true;
     }
   } else if (HAS_KEY(opts->virt_lines)) {
     api_set_error(err, kErrorTypeValidation, "virt_lines is not an Array");
@@ -676,11 +693,12 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
   }
 
   if (opts->sign_text.type == kObjectTypeString) {
-    if (!init_sign_text(&decor.sign_text,
-                        (char_u *)opts->sign_text.data.string.data)) {
+    if (!init_sign_text((char **)&decor.sign_text,
+                        opts->sign_text.data.string.data)) {
       api_set_error(err, kErrorTypeValidation, "sign_text is not a valid value");
       goto error;
     }
+    has_decor = true;
   } else if (HAS_KEY(opts->sign_text)) {
     api_set_error(err, kErrorTypeValidation, "sign_text is not a String");
     goto error;
@@ -705,6 +723,11 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
   bool ephemeral = false;
   OPTION_TO_BOOL(ephemeral, ephemeral, false);
 
+  OPTION_TO_BOOL(decor.ui_watched, ui_watched, false);
+  if (decor.ui_watched) {
+    has_decor = true;
+  }
+
   if (line < 0) {
     api_set_error(err, kErrorTypeValidation, "line value outside range");
     goto error;
@@ -716,7 +739,7 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
       line = buf->b_ml.ml_line_count;
     }
   } else if (line < buf->b_ml.ml_line_count) {
-    len = ephemeral ? MAXCOL : STRLEN(ml_get_buf(buf, (linenr_T)line+1, false));
+    len = ephemeral ? MAXCOL : STRLEN(ml_get_buf(buf, (linenr_T)line + 1, false));
   }
 
   if (col == -1) {
@@ -758,7 +781,7 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
 
   // TODO(bfredl): synergize these two branches even more
   if (ephemeral && decor_state.buf == buf) {
-    decor_add_ephemeral((int)line, (int)col, line2, col2, &decor);
+    decor_add_ephemeral((int)line, (int)col, line2, col2, &decor, (uint64_t)ns_id, id);
   } else {
     if (ephemeral) {
       api_set_error(err, kErrorTypeException, "not yet implemented");
@@ -766,7 +789,8 @@ Integer nvim_buf_set_extmark(Buffer buffer, Integer ns_id, Integer line, Integer
     }
 
     extmark_set(buf, (uint32_t)ns_id, &id, (int)line, (colnr_T)col, line2, col2,
-                &decor, right_gravity, end_right_gravity, kExtmarkNoUndo);
+                has_decor ? &decor : NULL, right_gravity, end_right_gravity,
+                kExtmarkNoUndo);
   }
 
   return (Integer)id;
@@ -923,7 +947,7 @@ void nvim_buf_clear_namespace(Buffer buffer, Integer ns_id, Integer line_start, 
   }
   extmark_clear(buf, (ns_id < 0 ? 0 : (uint32_t)ns_id),
                 (int)line_start, 0,
-                (int)line_end-1, MAXCOL);
+                (int)line_end - 1, MAXCOL);
 }
 
 /// Set or change decoration provider for a namespace
