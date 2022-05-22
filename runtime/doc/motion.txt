@@ -735,6 +735,11 @@ Jumping to a mark can be done in two ways:
 2. With ' (single quote): The cursor is positioned on the first non-blank
 			  character in the line of the specified location and
 			  the motion is linewise.
+						*mark-view*
+3. Apart from the above if any of the jumping mappings are prepended by
+[count], they will also try to restore the mark view. This is the number of
+lines between the cursor position and the window topline (first buffer line
+displayed in the window) when it was set. See also: |z'|
 
 						*m* *mark* *Mark*
 m{a-zA-Z}		Set mark {a-zA-Z} at cursor position (does not move
@@ -767,15 +772,27 @@ m<  or  m>		Set the |'<| or |'>| mark.  Useful to change what the
 			be omitted.
 
 						*'* *'a* *`* *`a*
-'{a-z}  `{a-z}		Jump to the mark {a-z} in the current buffer.
+'{a-z}  `{a-z}		Jump to the mark {a-z} in the current buffer. When
+			preceded by [count] works like |z'|.
 
 						*'A* *'0* *`A* *`0*
 '{A-Z0-9}  `{A-Z0-9}	To the mark {A-Z0-9} in the file where it was set (not
-			a motion command when in another file).
+			a motion command when in another file). When preceded
+			by [count] works like |z'|.
+
+						*z'* *z'a* *z`* *z`a*
+z'{a-z}  z`{a-z}	Jump to the mark {a-z} in the current buffer and
+			restore the |mark-view|.
+
+						*z'A* *z'0* *z`A* *z`0*
+z'{A-Z0-9}  z`{A-Z0-9}	To the mark {A-Z0-9} in the file where it was set and
+			restore the |mark-view| (not a motion command when in
+			another file).
 
 						*g'* *g'a* *g`* *g`a*
 g'{mark}  g`{mark}
-			Jump to the {mark}, but don't change the jumplist when
+			Jump to the {mark}, but don't change the jumplist.
+			When When preceded by [count] set the view like |z'|.
 			jumping within the current buffer.  Example: >
 				g`"
 <			jumps to the last known position in a file.

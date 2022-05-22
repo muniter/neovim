@@ -3560,11 +3560,8 @@ A jump table for the options with a short description can be found at |Q_op|.
 			jumplist and then jumping to a location.
 			|jumplist-stack|
 
-	  view          When moving through the jumplist try to restore the view from
-			when the jump occurred. The view of a jump is
-			the number of lines between the cursor position and
-			the window topline (first buffer line displayed in the
-			window) before jumping.
+	  view          When moving through the jumplist try to restore the
+			|mark-view| in which the jump occurred.
 
 			*'joinspaces'* *'js'* *'nojoinspaces'* *'nojs'*
 'joinspaces' 'js'	boolean	(default off)
